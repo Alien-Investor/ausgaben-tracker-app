@@ -1,0 +1,17 @@
+# Dependencies / Build-Artefakte (regenerierbar)
+node_modules/
+apk/node_modules/
+apk/www/
+apk/android/
+*.log
+
+# Secrets / Signing — niemals committen
+*.keystore
+*.jks
+*-keystore.properties
+.env
+.env.*
+
+# OS
+.DS_Store
+Thumbs.db

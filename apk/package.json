@@ -1,0 +1,17 @@
+{
+  "name": "ausgaben-tracker-apk",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Capacitor-Wrapper für den Ausgaben-Tracker (offline, verschlüsselt, gebündeltes Frontend).",
+  "scripts": { "build": "./build-www.sh && npx cap sync android" },
+  "devDependencies": {
+    "@capacitor/cli": "^6.2.0",
+    "@capacitor/assets": "^3.0.5"
+  },
+  "dependencies": {
+    "@capacitor/core": "^6.2.0",
+    "@capacitor/android": "^6.2.0",
+    "@capacitor/filesystem": "^6.0.4",
+    "@capacitor/share": "^6.0.4"
+  }
+}

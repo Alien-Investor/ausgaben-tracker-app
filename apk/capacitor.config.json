@@ -1,0 +1,6 @@
+{
+  "appId": "org.alieninvestor.ausgaben",
+  "appName": "Ausgaben-Tracker",
+  "webDir": "www",
+  "android": { "allowMixedContent": false }
+}

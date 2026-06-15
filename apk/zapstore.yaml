@@ -1,0 +1,37 @@
+# Zapstore-Listing — Ausgaben-Tracker (offline, verschlüsselt; Android-Wrapper)
+# Veröffentlichen:  set -a; source .env; set +a;  zsp publish zapstore.yaml
+repository: https://codeberg.org/Alien-Investor/ausgaben-tracker
+name: Ausgaben-Tracker
+pubkey: npub1cnlymdm5jz8eayycwynhze4s2zh9n0y04atce8ahxl5qfkptplls0s40hp
+
+summary: Minimal, offline-first, encrypted personal expense tracker — no account, no server.
+
+description: |
+  A minimal, fully offline personal expense tracker. No account, no server, no tracking
+  — all your data stays encrypted on your device and never leaves it.
+
+  Features:
+  - Monthly overview: fixed costs, variable expenses, comparison to previous month
+  - Annual overview (12-month table)
+  - Fixed-cost management (monthly / yearly, historically correct active/inactive state)
+  - CSV export (Excel / LibreOffice / Sheets) incl. a deduplicated fixed-cost summary
+  - Tax usage per fixed cost (private / business / partial)
+  - Encrypted vault: master password, AES-256-GCM, key via PBKDF2-SHA256 (600k iterations),
+    auto-lock after inactivity
+  - Encrypted .vault backup: export and import to move between devices
+  - German and English interface, switchable in-app
+  - Dark neon UI, fully mobile-first
+
+  Works completely offline — built entirely on native WebCrypto, no external dependencies.
+
+tags:
+  - finance
+  - tools
+  - productivity
+
+website: https://alien-investor.org
+icon: ./assets/icon-only.png
+images:
+  - ./screenshots/1-overview.png
+  - ./screenshots/2-fixed.png
+  - ./screenshots/3-export.png
