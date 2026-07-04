@@ -5,6 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="Ausgaben">
+  <!-- CSP: blockiert jede Netz-Verbindung (connect-src 'none') und fremde Quellen — Exfiltration selbst bei einem XSS-Fund unmöglich. -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
   <title>Ausgaben-Tracker — Alien Investor</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -1011,13 +1013,18 @@
 
     // --- Helpers ---
     function eur(n) {
+      // Hart auf Zahl zwingen — ein String aus einem manipulierten .vault würde sonst
+      // roh (unescaped) ins innerHTML laufen (String.toLocaleString gibt ihn 1:1 zurück).
+      n = Number(n); if (!isFinite(n)) n = 0;
       return n.toLocaleString(I18N.locale(), { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
     }
     function formatDateDE(dateStr) {
-      if (!dateStr) return '';
+      if (!dateStr || !/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return '';
       const [y, m, d] = dateStr.split('-');
       return `${d}.${m}.${y}`;
     }
+    // IDs landen in onclick-Attributen — auf UUID-Zeichen beschränken (kein Attribut-Ausbruch)
+    function idAttr(id) { return String(id).replace(/[^0-9a-zA-Z-]/g, ''); }
     function todayISO() {
       return today.toISOString().substring(0, 10);
     }
@@ -1163,7 +1170,7 @@
               <div class="item-right">
                 <div class="item-amount">${eur(monthly)}</div>
                 <div class="item-actions">
-                  <button class="action-btn" onclick="openFixedModal('${fc.id}')" data-i18n-title="modal.fixedEdit" title="${escapeHtml(I18N.t('modal.fixedEdit'))}">${ICON.svg('edit')}</button>
+                  <button class="action-btn" onclick="openFixedModal('${idAttr(fc.id)}')" data-i18n-title="modal.fixedEdit" title="${escapeHtml(I18N.t('modal.fixedEdit'))}">${ICON.svg('edit')}</button>
                 </div>
               </div>
             </div>`;
@@ -1188,8 +1195,8 @@
             <div class="item-right">
               <div class="item-amount">${eur(e.amount)}</div>
               <div class="item-actions">
-                <button class="action-btn" onclick="openExpenseModal('${e.id}')" title="${escapeHtml(I18N.t('modal.expenseEdit'))}">${ICON.svg('edit')}</button>
-                <button class="action-btn danger" onclick="deleteExpense('${e.id}')" title="${escapeHtml(I18N.t('confirm.delExpense'))}">${ICON.svg('trash')}</button>
+                <button class="action-btn" onclick="openExpenseModal('${idAttr(e.id)}')" title="${escapeHtml(I18N.t('modal.expenseEdit'))}">${ICON.svg('edit')}</button>
+                <button class="action-btn danger" onclick="deleteExpense('${idAttr(e.id)}')" title="${escapeHtml(I18N.t('confirm.delExpense'))}">${ICON.svg('trash')}</button>
               </div>
             </div>
           </div>`).join('');
@@ -1316,11 +1323,11 @@
                 <div class="item-amount">${eur(monthly)}<span class="item-period">${I18N.t('fixed.perMoShort')}</span></div>
               </div>
               <div class="item-actions">
-                <button class="action-btn" onclick="openFixedModal('${fc.id}')" title="${escapeHtml(I18N.t('modal.fixedEdit'))}">${ICON.svg('edit')}</button>
+                <button class="action-btn" onclick="openFixedModal('${idAttr(fc.id)}')" title="${escapeHtml(I18N.t('modal.fixedEdit'))}">${ICON.svg('edit')}</button>
                 ${fc.active
-                  ? `<button class="action-btn danger" onclick="toggleFixed('${fc.id}', false)" title="${escapeHtml(I18N.t('toast.deactivated'))}">${ICON.svg('pause')}</button>`
-                  : `<button class="action-btn success" onclick="toggleFixed('${fc.id}', true)" title="${escapeHtml(I18N.t('toast.activated'))}">${ICON.svg('play')}</button>
-                     <button class="action-btn danger" onclick="deleteFixed('${fc.id}')" title="${escapeHtml(I18N.t('confirm.delFixed'))}">${ICON.svg('trash')}</button>`
+                  ? `<button class="action-btn danger" onclick="toggleFixed('${idAttr(fc.id)}', false)" title="${escapeHtml(I18N.t('toast.deactivated'))}">${ICON.svg('pause')}</button>`
+                  : `<button class="action-btn success" onclick="toggleFixed('${idAttr(fc.id)}', true)" title="${escapeHtml(I18N.t('toast.activated'))}">${ICON.svg('play')}</button>
+                     <button class="action-btn danger" onclick="deleteFixed('${idAttr(fc.id)}')" title="${escapeHtml(I18N.t('confirm.delFixed'))}">${ICON.svg('trash')}</button>`
                 }
               </div>
             </div>
@@ -1709,9 +1716,26 @@
       } finally { btn.disabled = false; btn.textContent = I18N.t('auth.unlockBtn'); }
     }
 
+    // Nach dem Sperren darf nichts Entschlüsseltes im (verdeckten) DOM lesbar bleiben
+    function clearRendered() {
+      ['dashboard-content', 'summary-cards', 'annual-content', 'fixed-content', 'exp-category', 'fc-category'].forEach(id => {
+        const el = document.getElementById(id); if (el) el.innerHTML = '';
+      });
+      ['fc-monthly-total', 'fc-yearly-total', 'month-label'].forEach(id => {
+        const el = document.getElementById(id); if (el) el.textContent = '';
+      });
+      ['exp-name', 'exp-amount', 'exp-note', 'fc-name', 'fc-amount', 'fc-note', 'pass-old', 'pass-new1', 'pass-new2'].forEach(id => {
+        const el = document.getElementById(id); if (el) el.value = '';
+      });
+      ['modal-expense', 'modal-fixed', 'modal-pass'].forEach(id => document.getElementById(id).classList.remove('open'));
+      categories = [];
+      appReady = false;   // nach dem nächsten Entsperren rendert init() alles frisch
+    }
+
     function lockApp() {
       window.LocalDB.lock();
       clearIdle();
+      clearRendered();
       showAuth();
     }
 
@@ -1730,6 +1754,16 @@
     }
     ['click', 'keydown', 'touchstart', 'scroll', 'mousemove'].forEach(evt =>
       document.addEventListener(evt, () => { if (window.LocalDB.isUnlocked()) resetIdle(); }, { passive: true }));
+    // Backgrounding: setTimeout pausiert in eingefrorenen WebViews — beim Zurückkehren
+    // die tatsächlich verstrichene Zeit prüfen und ggf. sofort sperren.
+    let hiddenAt = 0;
+    document.addEventListener('visibilitychange', () => {
+      if (!window.LocalDB.isUnlocked()) return;
+      if (document.hidden) { hiddenAt = Date.now(); return; }
+      const away = hiddenAt ? Date.now() - hiddenAt : 0; hiddenAt = 0;
+      if (away > AUTOLOCK_MIN * 60000) { showToast(I18N.t('toast.autolocked')); lockApp(); }
+      else resetIdle();
+    });
 
     // --- SPRACHE (DE/EN) ---
     function updateLangToggle() {

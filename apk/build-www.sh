@@ -6,4 +6,5 @@ set -euo pipefail
 cd "$(dirname "$0")"
 rm -rf www && mkdir -p www
 cp -r ../public/* www/
+rm -f www/migrate.html   # Legacy-Migrationsseite (Server-Ära) gehört nicht in die APK
 echo "www/ gebaut:"; ls www/

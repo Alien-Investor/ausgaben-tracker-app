@@ -49,6 +49,36 @@
     await persist();
   }
 
+  // Import-Härtung: Vault-Inhalt nach dem Entschlüsseln schema-validieren. Jedes
+  // wiederhergestellte Backup läuft hier durch (restoreVaultRaw -> lock -> unlock) —
+  // eine präparierte .vault kann so kein HTML/JS in Felder wie amount/date/id schmuggeln.
+  function sanitizeVault(v) {
+    if (!v || typeof v !== 'object') v = {};
+    // Strikt: nur echte Zahlen / sauber-numerische Strings. "999<svg…>" → 0 (nicht 999).
+    const num = x => { const n = typeof x === 'number' ? x : Number(x); return isFinite(n) ? n : 0; };
+    const str = (x, max) => typeof x === 'string' ? x.slice(0, max) : '';
+    const dateOrNull = x => (typeof x === 'string' && /^\d{4}-\d{2}-\d{2}/.test(x)) ? x.slice(0, 10) : null;
+    const idStr = x => (typeof x === 'string' && /^[0-9a-zA-Z-]{1,64}$/.test(x)) ? x : uuid();
+    const out = emptyVault();
+    out.expenses = (Array.isArray(v.expenses) ? v.expenses : []).filter(e => e && typeof e === 'object').map(e => ({
+      id: idStr(e.id), name: str(e.name, 200), amount: num(e.amount),
+      category: str(e.category, 60) || 'Sonstiges', date: dateOrNull(e.date) || todayISO(), note: str(e.note, 500)
+    }));
+    out.fixedCosts = (Array.isArray(v.fixedCosts) ? v.fixedCosts : []).filter(f => f && typeof f === 'object').map(f => ({
+      id: idStr(f.id), name: str(f.name, 200), amount: num(f.amount),
+      period: f.period === 'yearly' ? 'yearly' : 'monthly', category: str(f.category, 60) || 'Sonstiges',
+      note: str(f.note, 500), usage: normalizeUsage(f.usage),
+      active: f.active !== false, deactivatedAt: dateOrNull(f.deactivatedAt),
+      since: dateOrNull(f.since)                       // fehlend/ungültig = null (aktiv für alle Monate, wie Altdaten)
+    }));
+    const cats = (Array.isArray(v.categories) ? v.categories : [])
+      .map(c => typeof c === 'string' ? c : (c && c.name))
+      .filter(n => typeof n === 'string' && n.trim())
+      .map(n => ({ name: n.trim().slice(0, 60) }));
+    out.categories = cats.length ? cats : DEFAULT_CATEGORIES.map(name => ({ name }));
+    return out;
+  }
+
   async function unlock(password) {
     const raw = localStorage.getItem(LS_KEY);
     if (!raw) throw new Error('Kein Vault vorhanden');
@@ -56,15 +86,14 @@
     try { blob = JSON.parse(raw); } catch (e) { throw new Error('Vault beschädigt'); }
     const salt = new Uint8Array(C.b64ToBuf(blob.salt));
     const k = await C.deriveKey(password, salt);
+    let v;
     try {
-      VAULT = await C.decryptBlob(blob, k);
+      v = await C.decryptBlob(blob, k);
     } catch (e) {
       throw new Error('Falsches Passwort'); // GCM-Auth schlägt bei falschem Schlüssel fehl
     }
     KEY = k; SALT = salt;
-    if (!VAULT.categories) VAULT.categories = DEFAULT_CATEGORIES.map(name => ({ name }));
-    if (!VAULT.expenses) VAULT.expenses = [];
-    if (!VAULT.fixedCosts) VAULT.fixedCosts = [];
+    VAULT = sanitizeVault(v);
   }
 
   function lock() { KEY = null; VAULT = null; SALT = null; }
@@ -114,6 +143,7 @@
         if (name && !have.has(name.toLowerCase())) { VAULT.categories.push({ name }); have.add(name.toLowerCase()); }
       });
     }
+    VAULT = sanitizeVault(VAULT);   // auch Legacy-Daten durch die Schema-Prüfung
     await persist();
     return { expenses: addedE, fixedCosts: addedF };
   }
@@ -184,7 +214,9 @@
   }
 
   function csvRows(rows) {
-    return rows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\r\n');
+    // Formel-Injection neutralisieren (=,+,@ am Zellanfang würde in Excel/Calc als Formel laufen)
+    const cell = v => { let s = String(v); if (/^[=+@]/.test(s)) s = "'" + s; return `"${s.replace(/"/g, '""')}"`; };
+    return rows.map(r => r.map(cell).join(',')).join('\r\n');
   }
 
   // CSV-Export (variable Ausgaben + amortisierte Fixkosten). Liefert {filename, content}.
