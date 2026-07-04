@@ -11,6 +11,9 @@ description: |
   — all your data stays encrypted on your device and never leaves it.
 
   Features:
+  - NO permissions at all — not even INTERNET. The OS itself guarantees the app
+    cannot phone home; verify it right in the APK manifest (since v1.5)
+  - FLAG_SECURE: no screenshots, no screen recording, no preview in recents (v1.5)
   - Monthly overview: fixed costs, variable expenses, comparison to previous month
   - Annual overview (12-month table)
   - Fixed-cost management (monthly / yearly, historically correct active/inactive state)
@@ -35,3 +38,5 @@ images:
   - ./screenshots/1-overview.png
   - ./screenshots/2-fixed.png
   - ./screenshots/3-export.png
+
+release_notes: ../CHANGELOG.md
