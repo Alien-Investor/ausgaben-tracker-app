@@ -15,3 +15,6 @@ apk/android/
 # OS
 .DS_Store
 Thumbs.db
+
+# Lokales Publish-Helferskript (referenziert lokale .env — nie ins Public-Repo)
+apk/publish-zapstore.sh
