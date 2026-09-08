@@ -223,8 +223,8 @@
   }
 
   function csvRows(rows) {
-    // Formel-Injection neutralisieren (=,+,@ am Zellanfang würde in Excel/Calc als Formel laufen)
-    const cell = v => { let s = String(v); if (/^[=+@]/.test(s)) s = "'" + s; return `"${s.replace(/"/g, '""')}"`; };
+    // Formel-Injection neutralisieren (=,+,-,@ sowie Tab/CR am Zellanfang würden in Excel/Calc als Formel laufen)
+    const cell = v => { let s = String(v); if (/^[=+\-@\t\r]/.test(s)) s = "'" + s; return `"${s.replace(/"/g, '""')}"`; };
     return rows.map(r => r.map(cell).join(',')).join('\r\n');
   }
 

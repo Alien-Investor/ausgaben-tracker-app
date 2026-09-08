@@ -716,12 +716,15 @@
     .backup-actions .btn { width: 100%; }
 
     /* --- RESPONSIVE --- */
+    /* Fünf Tabs müssen auch auf 412-px-Geräten (Pixel) und mit den längeren DE-Labels passen */
+    @media (max-width: 480px) {
+      .nav-tabs { gap: 2px; }
+      .nav-tab { font-size: 0.68rem; padding: 8px 2px; letter-spacing: 0; }
+    }
     @media (max-width: 400px) {
       .summary-grid { grid-template-columns: 1fr 1fr; }
       .summary-card .value { font-size: 1.1rem; }
       .header h1 { font-size: 1.5em; }
-      .nav-tabs { gap: 2px; }
-      .nav-tab { font-size: 0.68rem; padding: 8px 2px; letter-spacing: 0; }
       .fc-summary { flex-direction: column; gap: 12px; }
     }
   </style>
@@ -1108,7 +1111,8 @@
     // IDs landen in onclick-Attributen — auf UUID-Zeichen beschränken (kein Attribut-Ausbruch)
     function idAttr(id) { return String(id).replace(/[^0-9a-zA-Z-]/g, ''); }
     function todayISO() {
-      return today.toISOString().substring(0, 10);
+      // Immer frisch: die APK läuft tagelang, `today` vom Seitenstart wäre nach Mitternacht veraltet
+      return new Date().toISOString().substring(0, 10);
     }
     function escapeHtml(str) {
       const d = document.createElement('div');
@@ -1490,8 +1494,8 @@
           await apiFetch('PATCH', `/api/expenses/${editingExpenseId}`, body);
           showToast(I18N.t('toast.expUpdated'));
         } else {
+          const liabId = pendingLiabId;   // VOR dem await sichern (Overlay-Klick könnte die Variable währenddessen nullen)
           await apiFetch('POST', '/api/expenses', body);
-          const liabId = pendingLiabId;   // vor closeExpenseModal() sichern
           if (liabId) {
             await apiFetch('PATCH', `/api/liabilities/${liabId}`, { done: true });
             showToast(I18N.t('toast.liabBooked'));
@@ -1994,6 +1998,7 @@
         const el = document.getElementById(id); if (el) el.value = '';
       });
       ['modal-expense', 'modal-fixed', 'modal-liab', 'modal-pass'].forEach(id => document.getElementById(id).classList.remove('open'));
+      document.getElementById('liab-open-total').classList.remove('warn');
       pendingLiabId = null; editingLiabId = null;
       categories = [];
       appReady = false;   // nach dem nächsten Entsperren rendert init() alles frisch

@@ -2,6 +2,21 @@
 
 Format: `## vX.Y — YYYY-MM-DD`. Offline-App (Capacitor), Web + APK aus einer Codebasis.
 
+## v1.6.1 — 2026-09-08
+
+Kleines Folge-Release zu v1.6 nach einem gezielten Sicherheits-Review des neuen Codes
+(Ergebnis: keine ausnutzbare Lücke, vier Kleinigkeiten behoben) plus ein Darstellungsfehler.
+
+- **Navigation:** Auf Geräten mit 401 bis 480 px Breite (z.B. Pixel-Reihe mit 412 px) wurde
+  der Tab „Export" mit den deutschen Tab-Namen abgeschnitten. Der engere Tab-Abstand greift
+  jetzt bis 480 px; geprüft in beiden Sprachen von 320 bis 720 px.
+- **Abhaken + als Ausgabe buchen:** Die Verknüpfung zur Verbindlichkeit wird vor dem Speichern
+  fixiert, ein Overlay-Klick im falschen Moment kann keinen anderen Posten mehr abhaken.
+- **Datum immer aktuell:** Fälligkeits- und Überfällig-Anzeige nutzen das echte Tagesdatum,
+  auch wenn die App tagelang offen bleibt (vorher: Datum vom App-Start).
+- **CSV-Export:** Formel-Schutz zusätzlich für `-` sowie Tab/CR am Zellanfang.
+- **Sperren:** Rot-Markierung der Summe wird beim Sperren ebenfalls zurückgesetzt.
+
 ## v1.6 — 2026-09-08
 
 Neuer Tab **Schulden** (Verbindlichkeiten): offene Zahlungen sicher im verschlüsselten
