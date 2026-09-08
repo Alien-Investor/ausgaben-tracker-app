@@ -2,6 +2,26 @@
 
 Format: `## vX.Y — YYYY-MM-DD`. Offline-App (Capacitor), Web + APK aus einer Codebasis.
 
+## v1.6 — 2026-09-08
+
+Neuer Tab **Schulden** (Verbindlichkeiten): offene Zahlungen sicher im verschlüsselten
+Tresor notieren und abhaken. Bestehende Vaults und Backups funktionieren unverändert;
+ein Backup aus v1.6 enthält die Verbindlichkeiten automatisch mit.
+
+- **Verbindlichkeiten anlegen:** Bezeichnung, Betrag, optionales Fälligkeitsdatum, Notiz.
+- **Abhaken / wieder öffnen:** Erledigte Posten rutschen durchgestrichen in den Bereich
+  „Erledigt" (mit Datum), lassen sich wieder öffnen oder dauerhaft löschen.
+- **Kopfzeile:** Summe aller offenen Verbindlichkeiten, Anzahl offen/überfällig.
+  Überfällige Posten werden rot markiert, Fälligkeit in den nächsten 7 Tagen orange.
+- **Abhaken + als Ausgabe buchen:** öffnet das Ausgaben-Modal vorbefüllt (Kategorie
+  frei wählbar); nach dem Speichern ist die Verbindlichkeit abgehakt und die Zahlung
+  erscheint in der Monatsübersicht. Normales Abhaken bucht keine Ausgabe.
+- **Sicherheit:** Verbindlichkeiten laufen beim Backup-Import durch dieselbe
+  Schema-Prüfung wie Ausgaben (Feld-Whitelist, strikt numerische Beträge, UUID-IDs,
+  Datumsfelder gekappt, `done` strikt boolean); Sperren räumt auch diesen Tab und
+  das Modal aus dem DOM. Keine neuen Permissions, CSP unverändert.
+- Navigation auf schmalen Displays (360 px) enger gesetzt, damit fünf Tabs passen.
+
 ## v1.5 — 2026-07-04
 
 Sicherheits-Release: Härtung nach internem Code-Audit (gleiche Linie wie

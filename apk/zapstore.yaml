@@ -19,6 +19,8 @@ description: |
   - Fixed-cost management (monthly / yearly, historically correct active/inactive state)
   - CSV export (Excel / LibreOffice / Sheets) incl. a deduplicated fixed-cost summary
   - Tax usage per fixed cost (private / business / partial)
+  - Debts / liabilities (v1.6): note open payments with amount, due date and note,
+    tick them off, overdue items highlighted — optionally book a settled item as an expense
   - Encrypted vault: master password, AES-256-GCM, key via PBKDF2-SHA256 (600k iterations),
     auto-lock after inactivity
   - Encrypted .vault backup: export and import to move between devices
@@ -38,5 +40,6 @@ images:
   - ./screenshots/1-overview.png
   - ./screenshots/2-fixed.png
   - ./screenshots/3-export.png
+  - ./screenshots/4-debts.png
 
 release_notes: ../CHANGELOG.md

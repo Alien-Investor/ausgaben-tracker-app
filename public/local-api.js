@@ -23,6 +23,7 @@
       version: 1,
       expenses: [],
       fixedCosts: [],
+      liabilities: [],   // Verbindlichkeiten (seit v1.6): offene Schulden/Zahlungen zum Abhaken
       categories: DEFAULT_CATEGORIES.map(name => ({ name }))
     };
   }
@@ -70,6 +71,14 @@
       note: str(f.note, 500), usage: normalizeUsage(f.usage),
       active: f.active !== false, deactivatedAt: dateOrNull(f.deactivatedAt),
       since: dateOrNull(f.since)                       // fehlend/ungültig = null (aktiv für alle Monate, wie Altdaten)
+    }));
+    // Verbindlichkeiten: gleiche Whitelist-Strenge. done strikt boolean, Datumsfelder
+    // (due/doneAt/createdAt) nur als YYYY-MM-DD oder null.
+    out.liabilities = (Array.isArray(v.liabilities) ? v.liabilities : []).filter(l => l && typeof l === 'object').map(l => ({
+      id: idStr(l.id), name: str(l.name, 200), amount: num(l.amount),
+      due: dateOrNull(l.due), note: str(l.note, 500),
+      done: l.done === true, doneAt: l.done === true ? dateOrNull(l.doneAt) : null,
+      createdAt: dateOrNull(l.createdAt) || todayISO()
     }));
     const cats = (Array.isArray(v.categories) ? v.categories : [])
       .map(c => typeof c === 'string' ? c : (c && c.name))
@@ -355,6 +364,51 @@
       if (method === 'DELETE') {
         if (idx === -1) err('Nicht gefunden');
         VAULT.fixedCosts.splice(idx, 1); await persist(); return null;
+      }
+    }
+
+    // --- liabilities (Verbindlichkeiten) ---
+    // Sortierung: offene zuerst (Fälligkeit aufsteigend, ohne Datum ans Ende), dann erledigte
+    // (zuletzt erledigte oben). Betrag strikt Number() — kein parseFloat.
+    if (res === 'liabilities') {
+      const amt = x => { const n = Number(x); return isFinite(n) && n >= 0 ? n : null; };
+      const dateOrNull = x => (typeof x === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(x)) ? x : null;
+      if (method === 'GET' && !id) {
+        return VAULT.liabilities.slice().sort((a, b) => {
+          if (a.done !== b.done) return a.done ? 1 : -1;
+          if (!a.done) return (a.due || '9999').localeCompare(b.due || '9999') || (a.createdAt || '').localeCompare(b.createdAt || '');
+          return (b.doneAt || '').localeCompare(a.doneAt || '');
+        });
+      }
+      if (method === 'POST') {
+        const { name, amount, due, note } = body || {};
+        const a = amt(amount);
+        if (!name || a === null) err('name und amount sind Pflichtfelder');
+        const entry = {
+          id: uuid(), name: String(name).trim().slice(0, 200), amount: a,
+          due: dateOrNull(due), note: String(note || '').slice(0, 500),
+          done: false, doneAt: null, createdAt: todayISO()
+        };
+        VAULT.liabilities.push(entry); await persist(); return entry;
+      }
+      const idx = VAULT.liabilities.findIndex(l => l.id === id);
+      if (method === 'PATCH') {
+        if (idx === -1) err('Nicht gefunden');
+        const l = VAULT.liabilities[idx];
+        const { name, amount, due, note, done } = body || {};
+        if (name !== undefined) l.name = String(name).trim().slice(0, 200);
+        if (amount !== undefined) { const a = amt(amount); if (a === null) err('Ungültiger Betrag'); l.amount = a; }
+        if (due !== undefined) l.due = dateOrNull(due);
+        if (note !== undefined) l.note = String(note || '').slice(0, 500);
+        if (done !== undefined) {
+          l.done = done === true;
+          l.doneAt = l.done ? todayISO() : null;
+        }
+        await persist(); return l;
+      }
+      if (method === 'DELETE') {
+        if (idx === -1) err('Nicht gefunden');
+        VAULT.liabilities.splice(idx, 1); await persist(); return null;
       }
     }
 

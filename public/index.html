@@ -596,6 +596,27 @@
     .inactive-label { font-size: 0.65rem; color: #f7931a; padding: 2px 6px; border-radius: 10px; background: rgba(247,147,26,0.1); border: 1px solid rgba(247,147,26,0.2); }
     .inactive-section-title { font-size: 0.72rem; color: #555; text-transform: uppercase; letter-spacing: 0.5px; margin: 16px 0 8px 0; }
 
+    /* --- VERBINDLICHKEITEN (v1.6) --- */
+    .liab-item { gap: 10px; }
+    .liab-item.done { opacity: 0.45; border-style: dashed; }
+    .liab-item.done .item-name, .liab-item.done .item-amount { text-decoration: line-through; color: #888; }
+    .liab-item.overdue { border-color: rgba(248,81,73,0.45); }
+    .liab-check {
+      flex-shrink: 0; width: 24px; height: 24px; border-radius: 7px;
+      border: 2px solid #00ffcc; background: transparent; color: #000;
+      cursor: pointer; display: flex; align-items: center; justify-content: center;
+      padding: 0; transition: all 0.2s;
+    }
+    .liab-check:hover { background: rgba(0,255,204,0.15); box-shadow: 0 0 10px rgba(0,255,204,0.3); }
+    .liab-check.checked { background: #00ffcc; border-color: #00ffcc; }
+    .liab-check .icon { width: 15px; height: 15px; }
+    .liab-item.done .liab-check { border-color: #555; background: #555; }
+    .due-badge { font-size: 0.65rem; padding: 2px 6px; border-radius: 10px; white-space: nowrap;
+      color: #888; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); }
+    .due-badge.soon { color: #f7931a; background: rgba(247,147,26,0.1); border-color: rgba(247,147,26,0.25); }
+    .due-badge.overdue { color: #f85149; background: rgba(248,81,73,0.12); border-color: rgba(248,81,73,0.3); font-weight: 600; }
+    .fc-stat .value.warn { color: #f85149; }
+
     /* --- LINKS --- */
     a { color: #00ffcc; text-decoration: none; }
 
@@ -699,7 +720,8 @@
       .summary-grid { grid-template-columns: 1fr 1fr; }
       .summary-card .value { font-size: 1.1rem; }
       .header h1 { font-size: 1.5em; }
-      .nav-tab { font-size: 0.7rem; padding: 8px 4px; }
+      .nav-tabs { gap: 2px; }
+      .nav-tab { font-size: 0.68rem; padding: 8px 2px; letter-spacing: 0; }
       .fc-summary { flex-direction: column; gap: 12px; }
     }
   </style>
@@ -763,6 +785,7 @@
       <button class="nav-tab active" data-tab="dashboard" data-i18n="nav.overview">Übersicht</button>
       <button class="nav-tab" data-tab="annual" data-i18n="nav.annual">Jahresübers.</button>
       <button class="nav-tab" data-tab="fixed" data-i18n="nav.fixed">Fixkosten</button>
+      <button class="nav-tab" data-tab="liab" data-i18n="nav.liab">Schulden</button>
       <button class="nav-tab" data-tab="export" data-i18n="nav.export">Export</button>
     </div>
 
@@ -821,6 +844,30 @@
       <button class="fc-add-btn" data-i18n="fixed.addBtn" onclick="openFixedModal()">+ Fixkosten hinzufügen</button>
 
       <div id="fixed-content">
+        <div class="loading">Lade...</div>
+      </div>
+
+    </div>
+
+    <!-- TAB: VERBINDLICHKEITEN (v1.6) -->
+    <div id="tab-liab" class="tab-content">
+
+      <div class="fc-summary" id="liab-summary">
+        <div class="fc-stat">
+          <div class="label" data-i18n="liab.open">Offen</div>
+          <div class="value" id="liab-open-total">—</div>
+          <div class="sub" data-i18n="liab.openTotal">Verbindlichkeiten gesamt</div>
+        </div>
+        <div class="fc-stat">
+          <div class="label" data-i18n="liab.count">Posten</div>
+          <div class="value" id="liab-open-count">—</div>
+          <div class="sub" id="liab-count-sub"></div>
+        </div>
+      </div>
+
+      <button class="fc-add-btn" data-i18n="liab.addBtn" onclick="openLiabModal()">+ Verbindlichkeit hinzufügen</button>
+
+      <div id="liab-content">
         <div class="loading">Lade...</div>
       </div>
 
@@ -990,6 +1037,39 @@
     </div>
   </div>
 
+  <!-- MODAL: Verbindlichkeit (v1.6) -->
+  <div class="modal-overlay" id="modal-liab" onclick="if(event.target===this)closeLiabModal()">
+    <div class="modal">
+      <h2 id="liab-modal-title" data-i18n="modal.liabAdd">Verbindlichkeit hinzufügen</h2>
+
+      <div class="form-group">
+        <label data-i18n="modal.label">Bezeichnung *</label>
+        <input type="text" id="liab-name" data-i18n-ph="ph.liabName" placeholder="z.B. Rückzahlung an Max, Steuernachzahlung" autocomplete="off">
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label data-i18n="modal.amount">Betrag (€) *</label>
+          <input type="number" id="liab-amount" step="0.01" min="0" data-i18n-ph="ph.amount" placeholder="0,00">
+        </div>
+        <div class="form-group">
+          <label data-i18n="modal.due">Fällig am (optional)</label>
+          <input type="date" id="liab-due">
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label data-i18n="modal.note">Notiz (optional)</label>
+        <input type="text" id="liab-note" placeholder="">
+      </div>
+
+      <div class="form-actions">
+        <button class="btn btn-cancel" data-i18n="modal.cancel" onclick="closeLiabModal()">Abbrechen</button>
+        <button class="btn btn-save" id="btn-liab-save" data-i18n="modal.save" onclick="saveLiab()">Speichern</button>
+      </div>
+    </div>
+  </div>
+
   <!-- TOAST -->
   <div class="toast ok" id="toast"></div>
 
@@ -1010,6 +1090,8 @@
     let editingExpenseId = null;
     let editingFixedId = null;
     let selectedPeriod = 'monthly';
+    let editingLiabId = null;
+    let pendingLiabId = null;   // Verbindlichkeit, die nach dem Speichern der Ausgabe abgehakt wird
 
     // --- Helpers ---
     function eur(n) {
@@ -1080,6 +1162,7 @@
       if (name === 'dashboard') loadDashboard();
       if (name === 'annual') loadAnnual();
       if (name === 'fixed') loadFixedCosts();
+      if (name === 'liab') loadLiabilities();
     });
 
     // --- DASHBOARD ---
@@ -1351,6 +1434,7 @@
     // --- EXPENSE MODAL ---
     function openExpenseModal(id) {
       editingExpenseId = id || null;
+      pendingLiabId = null;
       const isEdit = !!id;
       document.getElementById('expense-modal-title').textContent = I18N.t(isEdit ? 'modal.expenseEdit' : 'modal.expenseAdd');
       document.getElementById('exp-date').value = todayISO();
@@ -1383,6 +1467,7 @@
     function closeExpenseModal() {
       document.getElementById('modal-expense').classList.remove('open');
       editingExpenseId = null;
+      pendingLiabId = null;
     }
 
     async function saveExpense() {
@@ -1406,7 +1491,14 @@
           showToast(I18N.t('toast.expUpdated'));
         } else {
           await apiFetch('POST', '/api/expenses', body);
-          showToast(I18N.t('toast.expSaved'));
+          const liabId = pendingLiabId;   // vor closeExpenseModal() sichern
+          if (liabId) {
+            await apiFetch('PATCH', `/api/liabilities/${liabId}`, { done: true });
+            showToast(I18N.t('toast.liabBooked'));
+            loadLiabilities();
+          } else {
+            showToast(I18N.t('toast.expSaved'));
+          }
         }
         closeExpenseModal();
         loadDashboard();
@@ -1531,6 +1623,180 @@
         showToast(I18N.t('toast.deleted'));
         loadFixedCosts();
         loadDashboard();
+      } catch (e) {
+        showToast(I18N.t('err.prefix') + e.message, true);
+      }
+    }
+
+    // --- VERBINDLICHKEITEN (v1.6) ---
+    async function loadLiabilities() {
+      try {
+        const list = await apiFetch('GET', '/api/liabilities');
+        renderLiabilities(list);
+      } catch (e) {
+        showError(e.message);
+      }
+    }
+
+    function renderLiabilities(list) {
+      const open = list.filter(l => !l.done);
+      const done = list.filter(l => l.done);
+      const td = todayISO();
+      const overdue = open.filter(l => l.due && l.due < td);
+
+      const openTotal = open.reduce((s, l) => s + Number(l.amount || 0), 0);
+      const totalEl = document.getElementById('liab-open-total');
+      totalEl.textContent = eur(openTotal);
+      totalEl.classList.toggle('warn', overdue.length > 0);
+      document.getElementById('liab-open-count').textContent = String(open.length);
+      document.getElementById('liab-count-sub').textContent = I18N.t('liab.countSub', { open: open.length, overdue: overdue.length });
+
+      function dueBadge(l) {
+        if (!l.due) return '';
+        if (l.due < td) return `<span class="due-badge overdue">${escapeHtml(I18N.t('liab.overdue'))} · ${formatDateDE(l.due)}</span>`;
+        if (l.due === td) return `<span class="due-badge soon">${escapeHtml(I18N.t('liab.dueToday'))}</span>`;
+        // innerhalb der nächsten 7 Tage: orange
+        const days = Math.round((new Date(l.due + 'T00:00:00') - new Date(td + 'T00:00:00')) / 86400000);
+        return `<span class="due-badge ${days <= 7 ? 'soon' : ''}">${escapeHtml(I18N.t('liab.dueOn', { date: formatDateDE(l.due) }))}</span>`;
+      }
+
+      function renderItem(l) {
+        const id = idAttr(l.id);
+        const isOverdue = !l.done && l.due && l.due < td;
+        return `
+          <div class="fixed-item liab-item ${l.done ? 'done' : ''} ${isOverdue ? 'overdue' : ''}">
+            <button class="liab-check ${l.done ? 'checked' : ''}" onclick="toggleLiab('${id}', ${l.done ? 'false' : 'true'})"
+                    title="${escapeHtml(I18N.t(l.done ? 'liab.reopen' : 'liab.markDone'))}" aria-label="${escapeHtml(I18N.t(l.done ? 'liab.reopen' : 'liab.markDone'))}">${l.done ? ICON.svg('check') : ''}</button>
+            <div class="item-left">
+              <div class="item-name">${escapeHtml(l.name)}</div>
+              <div class="item-meta">
+                ${l.done
+                  ? (l.doneAt ? `<span class="item-date">${escapeHtml(I18N.t('liab.doneOn', { date: formatDateDE(l.doneAt) }))}</span>` : '')
+                  : dueBadge(l)}
+              </div>
+              ${l.note ? `<div style="font-size:0.72rem;color:#555;margin-top:2px;font-style:italic">${escapeHtml(l.note)}</div>` : ''}
+            </div>
+            <div class="item-right">
+              <div class="item-amount">${eur(l.amount)}</div>
+              <div class="item-actions">
+                ${l.done
+                  ? `<button class="action-btn success" onclick="toggleLiab('${id}', false)" title="${escapeHtml(I18N.t('liab.reopen'))}">${ICON.svg('undo')}</button>
+                     <button class="action-btn danger" onclick="deleteLiab('${id}')" title="${escapeHtml(I18N.t('confirm.delLiab'))}">${ICON.svg('trash')}</button>`
+                  : `<button class="action-btn" onclick="bookLiab('${id}')" title="${escapeHtml(I18N.t('liab.book'))}">${ICON.svg('coins')}</button>
+                     <button class="action-btn" onclick="openLiabModal('${id}')" title="${escapeHtml(I18N.t('modal.liabEdit'))}">${ICON.svg('edit')}</button>
+                     <button class="action-btn danger" onclick="deleteLiab('${id}')" title="${escapeHtml(I18N.t('confirm.delLiab'))}">${ICON.svg('trash')}</button>`
+                }
+              </div>
+            </div>
+          </div>`;
+      }
+
+      let html = '';
+      if (open.length === 0 && done.length === 0) {
+        html = `<div class="empty-state">${ICON.svg('clipboard', 'lg')}<div>${I18N.t('liab.empty')}</div></div>`;
+      } else {
+        if (open.length > 0) html += `<div class="item-list">${open.map(renderItem).join('')}</div>`;
+        else html += `<div class="empty-state" style="padding:20px 16px">${I18N.t('liab.empty')}</div>`;
+        if (done.length > 0) {
+          html += `<div class="inactive-section-title">${I18N.t('liab.doneSection')}</div>`;
+          html += `<div class="item-list">${done.map(renderItem).join('')}</div>`;
+        }
+      }
+      document.getElementById('liab-content').innerHTML = html;
+    }
+
+    function openLiabModal(id) {
+      editingLiabId = id || null;
+      const isEdit = !!id;
+      document.getElementById('liab-modal-title').textContent = I18N.t(isEdit ? 'modal.liabEdit' : 'modal.liabAdd');
+      document.getElementById('liab-name').value = '';
+      document.getElementById('liab-amount').value = '';
+      document.getElementById('liab-due').value = '';
+      document.getElementById('liab-note').value = '';
+      if (isEdit) loadLiabForEdit(id);
+      document.getElementById('modal-liab').classList.add('open');
+      setTimeout(() => document.getElementById('liab-name').focus(), 100);
+    }
+
+    async function loadLiabForEdit(id) {
+      try {
+        const list = await apiFetch('GET', '/api/liabilities');
+        const l = list.find(x => x.id === id);
+        if (!l) return;
+        document.getElementById('liab-name').value = l.name;
+        document.getElementById('liab-amount').value = l.amount;
+        document.getElementById('liab-due').value = l.due || '';
+        document.getElementById('liab-note').value = l.note || '';
+      } catch (e) { /* ignore */ }
+    }
+
+    function closeLiabModal() {
+      document.getElementById('modal-liab').classList.remove('open');
+      editingLiabId = null;
+    }
+
+    async function saveLiab() {
+      const name = document.getElementById('liab-name').value.trim();
+      const amount = Number(document.getElementById('liab-amount').value);
+      if (!name || !isFinite(amount) || amount <= 0) { showToast(I18N.t('toast.reqFields'), true); return; }
+      const body = {
+        name, amount,
+        due: document.getElementById('liab-due').value || null,
+        note: document.getElementById('liab-note').value.trim()
+      };
+      const btn = document.getElementById('btn-liab-save');
+      btn.disabled = true;
+      try {
+        if (editingLiabId) {
+          await apiFetch('PATCH', `/api/liabilities/${editingLiabId}`, body);
+          showToast(I18N.t('toast.liabUpdated'));
+        } else {
+          await apiFetch('POST', '/api/liabilities', body);
+          showToast(I18N.t('toast.liabAdded'));
+        }
+        closeLiabModal();
+        loadLiabilities();
+      } catch (e) {
+        showToast(I18N.t('err.prefix') + e.message, true);
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
+    async function toggleLiab(id, done) {
+      try {
+        await apiFetch('PATCH', `/api/liabilities/${id}`, { done: done === true });
+        showToast(I18N.t(done ? 'toast.liabDone' : 'toast.liabReopened'));
+        loadLiabilities();
+      } catch (e) {
+        showToast(I18N.t('err.prefix') + e.message, true);
+      }
+    }
+
+    // "Abhaken + als Ausgabe buchen": öffnet das normale Ausgaben-Modal vorbefüllt
+    // (Kategorie frei wählbar); nach dem Speichern wird die Verbindlichkeit abgehakt.
+    async function bookLiab(id) {
+      try {
+        const list = await apiFetch('GET', '/api/liabilities');
+        const l = list.find(x => x.id === id);
+        if (!l) return;
+        openExpenseModal();
+        pendingLiabId = l.id;
+        document.getElementById('expense-modal-title').textContent = I18N.t('modal.bookExpense');
+        document.getElementById('exp-name').value = l.name;
+        document.getElementById('exp-amount').value = l.amount;
+        document.getElementById('exp-note').value = l.note || I18N.t('liab.bookNote');
+      } catch (e) {
+        showToast(I18N.t('err.prefix') + e.message, true);
+      }
+    }
+
+    async function deleteLiab(id) {
+      if (!confirm(I18N.t('confirm.delLiab'))) return;
+      try {
+        await apiFetch('DELETE', `/api/liabilities/${id}`);
+        showToast(I18N.t('toast.deleted'));
+        loadLiabilities();
       } catch (e) {
         showToast(I18N.t('err.prefix') + e.message, true);
       }
@@ -1718,16 +1984,17 @@
 
     // Nach dem Sperren darf nichts Entschlüsseltes im (verdeckten) DOM lesbar bleiben
     function clearRendered() {
-      ['dashboard-content', 'summary-cards', 'annual-content', 'fixed-content', 'exp-category', 'fc-category'].forEach(id => {
+      ['dashboard-content', 'summary-cards', 'annual-content', 'fixed-content', 'liab-content', 'exp-category', 'fc-category'].forEach(id => {
         const el = document.getElementById(id); if (el) el.innerHTML = '';
       });
-      ['fc-monthly-total', 'fc-yearly-total', 'month-label'].forEach(id => {
+      ['fc-monthly-total', 'fc-yearly-total', 'month-label', 'liab-open-total', 'liab-open-count', 'liab-count-sub'].forEach(id => {
         const el = document.getElementById(id); if (el) el.textContent = '';
       });
-      ['exp-name', 'exp-amount', 'exp-note', 'fc-name', 'fc-amount', 'fc-note', 'pass-old', 'pass-new1', 'pass-new2'].forEach(id => {
+      ['exp-name', 'exp-amount', 'exp-note', 'fc-name', 'fc-amount', 'fc-note', 'liab-name', 'liab-amount', 'liab-due', 'liab-note', 'pass-old', 'pass-new1', 'pass-new2'].forEach(id => {
         const el = document.getElementById(id); if (el) el.value = '';
       });
-      ['modal-expense', 'modal-fixed', 'modal-pass'].forEach(id => document.getElementById(id).classList.remove('open'));
+      ['modal-expense', 'modal-fixed', 'modal-liab', 'modal-pass'].forEach(id => document.getElementById(id).classList.remove('open'));
+      pendingLiabId = null; editingLiabId = null;
       categories = [];
       appReady = false;   // nach dem nächsten Entsperren rendert init() alles frisch
     }
@@ -1778,6 +2045,7 @@
       if (v === 'dashboard') loadDashboard();
       else if (v === 'annual') loadAnnual();
       else if (v === 'fixed') loadFixedCosts();
+      else if (v === 'liab') loadLiabilities();
     }
     document.getElementById('lang-toggle').addEventListener('click', () => {
       I18N.setLang(I18N.lang === 'de' ? 'en' : 'de');

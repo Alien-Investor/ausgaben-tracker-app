@@ -14,6 +14,9 @@ No account, no server, no tracking — all data stays **encrypted on your device
 - Fixkosten-Verwaltung (monatlich/jährlich, historisch korrekt über Aktiv-/Inaktiv-Status)
 - CSV-Export (Excel/LibreOffice/Sheets-kompatibel) inkl. Fixkosten-Zusammenfassung
 - Steuerliche Nutzung pro Fixkosten-Position (privat / betrieblich / anteilig)
+- **Schulden / Verbindlichkeiten** (seit v1.6): offene Zahlungen mit Betrag, Fälligkeit und
+  Notiz notieren und abhaken, überfällige Posten rot markiert — auf Wunsch beim Abhaken
+  direkt als Ausgabe buchen
 - **Verschlüsselter Tresor:** Master-Passwort, AES-256-GCM, Schlüssel via PBKDF2-SHA256
   (600.000 Iterationen), Auto-Lock nach Inaktivität
 - **Backup:** verschlüsselter `.vault`-Export/-Import zum Geräte-Umzug
