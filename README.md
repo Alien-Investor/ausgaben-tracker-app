@@ -73,7 +73,7 @@ node patch-hardening.mjs --check android/app/build/intermediates/packaged_manife
 ```
 
 Sicherheits-Audits: v1.5 (internes Audit), **v1.7 run-1 (13.09.2026)** mit dem security-audit-Skill —
-13 Funde, alle vor dem Release behoben (Details im `CHANGELOG.md`).
+13 Funde, alle vor dem Release behoben; Nachbesserung zu Fund 6 in **v1.7.1** (Details im `CHANGELOG.md`).
 
 ## Lizenz
 

@@ -2,6 +2,18 @@
 
 Format: `## vX.Y — YYYY-MM-DD`. Offline-App (Capacitor), Web + APK aus einer Codebasis.
 
+## v1.7.1 — 2026-09-13
+
+Wartungsrelease, Nachbesserung zu Audit-Fund 6 aus run-1. Keine neuen Funktionen, keine Änderung am
+Datenformat; ein Backup aus v1.7 lädt unverändert.
+
+- **Inaktive Fixkosten ohne Datum:** Beim Import eines Backups bekamen deaktivierte Fixkosten, die kein
+  gültiges Deaktivierungsdatum trugen, bisher das heutige Datum eingesetzt. Dadurch zählten sie in allen
+  **Vormonaten** weiterhin mit (Übersicht, Fixkosten-Summe, CSV). Jetzt bleibt das Datum leer, und der
+  Posten zählt in keinem Monat. Wer einen Posten in der App selbst deaktiviert, behält wie bisher das
+  Datum des Klicks; nur ab diesem Monat fällt er weg.
+- Prüfsuite `verify-audit1.mjs` #6 misst das jetzt über mehrere Monate hinweg (aktueller Monat, Vorjahr, Altmonate).
+
 ## v1.7 — 2026-09-13
 
 Der Tracker sieht jetzt aus wie seine Schwester-Apps (Sachwert-Tresor, Alien Pass) und bekommt einen

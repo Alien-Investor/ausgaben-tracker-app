@@ -125,8 +125,9 @@
         period: f.period === 'yearly' ? 'yearly' : 'monthly', category: str(f.category, 60).trim() || fb,
         note: str(f.note, 500), usage: normalizeUsage(f.usage),
         active,
-        // Inaktiv ohne gültiges Datum galt in der Aggregation als aktiv (Audit run-1 #6): ab heute inaktiv
-        deactivatedAt: active ? null : (dateOrNull(f.deactivatedAt) || todayISO()),
+        // Inaktiv ohne gültiges Datum = null = inaktiv für ALLE Monate (Audit run-1 #6, Nachbesserung v1.7.1:
+        // „heute" als Ersatzdatum ließ den Posten in allen Vormonaten weiterzählen)
+        deactivatedAt: active ? null : dateOrNull(f.deactivatedAt),
         since: dateOrNull(f.since)                       // fehlend/ungültig = null (aktiv für alle Monate, wie Altdaten)
       };
     });
@@ -227,7 +228,7 @@
   function normalizeUsage(u) { return (u === 'betrieblich' || u === 'anteilig') ? u : 'privat'; }
   function isFixedActiveForMonth(fc, yearMonth) {
     if (fc.since && fc.since.substring(0, 7) > yearMonth) return false;
-    // inaktiv ohne Datum = inaktiv für alle Monate (Sanitizer setzt das Datum, Altdaten sicherheitshalber auch hier)
+    // inaktiv ohne Datum (null) = inaktiv für alle Monate; nur ein echtes Datum begrenzt die Deaktivierung nach hinten
     if (!fc.active && (!fc.deactivatedAt || fc.deactivatedAt.substring(0, 7) <= yearMonth)) return false;
     return true;
   }
