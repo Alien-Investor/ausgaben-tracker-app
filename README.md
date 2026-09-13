@@ -19,9 +19,15 @@ No account, no server, no tracking — all data stays **encrypted on your device
   direkt als Ausgabe buchen
 - **Verschlüsselter Tresor:** Master-Passwort, AES-256-GCM, Schlüssel via PBKDF2-SHA256
   (600.000 Iterationen), Auto-Lock nach Inaktivität
-- **Backup:** verschlüsselter `.vault`-Export/-Import zum Geräte-Umzug
-- Deutsch & Englisch, in der App umschaltbar
-- Dunkles Neon-UI, Mobile-first
+- **Backup:** verschlüsselter `.vault`-Export/-Import zum Geräte-Umzug — beim Import fragt die App
+  nach dem Passwort des Backups und ersetzt die vorhandenen Daten erst, wenn es sich öffnen lässt
+- **Einstellungen** (seit v1.7): Auto-Lock wählbar (Aus / 1 / 5 / 15 / 30 Minuten), Jetzt sperren,
+  Master-Passwort ändern, Farbschema Schwarz (Neon) / Soft (Marine), eigene Kategorien anlegen,
+  umbenennen und löschen, Versionsanzeige
+- **Übersicht nach Kategorie** mit Suche und Kategorie-Filter (seit v1.7)
+- Eingebautes Handbuch (?-Knopf), Deutsch & Englisch — folgt beim ersten Start der Systemsprache,
+  in der App umschaltbar
+- Familien-Design der Alien-Investor-Apps (Orbitron / Share Tech Mono, lokal gebündelt), Mobile-first
 
 Die App ist eine offline-only Web-App (HTML/JS, WebCrypto) in einem Capacitor-Wrapper —
 keine externen Dependencies, keine Netzwerk-Calls.
@@ -57,9 +63,17 @@ keine Wiederherstellung — es wird nirgends gespeichert oder übertragen.
 cd apk
 npm install
 npx cap add android          # einmalig
-./build-www.sh && npx cap sync android
-# Release-Signierung erfolgt mit einem privaten Keystore (nicht in diesem Repo).
+./build-www.sh               # kopiert ../public nach www/ und setzt die Versionsanzeige aus VERSION
+npx cap sync android
+node patch-hardening.mjs     # allowBackup=false, INTERNET-Permission raus, FLAG_SECURE — bricht ab, wenn etwas fehlt
+( cd android && ./gradlew assembleRelease --no-daemon )
+node patch-hardening.mjs --check android/app/build/intermediates/packaged_manifests/release/AndroidManifest.xml
+# Release-Signierung erfolgt mit einem privaten Keystore (nicht in diesem Repo). Ohne Signierkonfiguration
+# baut Gradle eine unsignierte APK; die Härtung (keine Permissions) ist unabhängig davon und prüfbar.
 ```
+
+Sicherheits-Audits: v1.5 (internes Audit), **v1.7 run-1 (13.09.2026)** mit dem security-audit-Skill —
+13 Funde, alle vor dem Release behoben (Details im `CHANGELOG.md`).
 
 ## Lizenz
 

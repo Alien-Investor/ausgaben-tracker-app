@@ -2,6 +2,58 @@
 
 Format: `## vX.Y — YYYY-MM-DD`. Offline-App (Capacitor), Web + APK aus einer Codebasis.
 
+## v1.7 — 2026-09-13
+
+Der Tracker sieht jetzt aus wie seine Schwester-Apps (Sachwert-Tresor, Alien Pass) und bekommt einen
+Tab **Einstellungen**. Bestehende Tresore und Backups funktionieren unverändert; ein Backup aus v1.6.1
+lädt sauber (Kategorien bekommen intern eine ID, Einstellungen starten mit den Standardwerten).
+
+- **Design:** Familien-Look mit Orbitron + Share Tech Mono (lokal gebündelt, keine Netzlast), flache
+  Neon-Karten, Tabs oben, Sperr- und Setup-Screen als Karte unter dem Kopf. Sternenhimmel jetzt
+  statisch (kein Twinkle, kein Nebel, keine Sternschnuppen — spart Akku, respektiert reduced-motion).
+  Zweites Farbschema **Soft (Marine)**, Wahl gilt markenweit für alle Alien-Investor-Apps.
+- **Einstellungen (neuer Tab):** Auto-Lock wählbar (Aus / 1 / 5 / 15 / 30 Minuten, wandert mit dem
+  Backup), „Jetzt sperren", Master-Passwort ändern (aus dem Export-Tab hierher gezogen), Darstellung,
+  Kategorien verwalten, Über-Karte mit **Versionsnummer**.
+- **Kategorien:** eigene Kategorien anlegen, umbenennen (zieht alle Einträge nach) und löschen
+  (Einträge wandern nach „Sonstiges"). Neue Karte **Nach Kategorie** in der Übersicht mit Summe,
+  Balken und Anteil je Kategorie für den Monat.
+- **Suche + Filter:** Suchfeld (Name, Notiz, Kategorie; Umlaute und Groß-/Kleinschreibung egal) und
+  Kategorie-Chips über den Listen der Übersicht.
+- **Handbuch:** ?-Knopf im Kopf öffnet eine kurze Anleitung (DE/EN) zu Erfassen, Fixkosten, Schulden,
+  Export, Backup und Sicherheit.
+- **Sprache:** Beim ersten Start folgt die App der Systemsprache (Deutsch oder Englisch); der
+  Sprach-Knopf zeigt die aktive Sprache. Standard-Kategorien werden in der aktiven Sprache angelegt.
+  `?lang=de|en` erzwingt eine Sprache (für Screenshots).
+- **Bedienung:** ESC schließt Formulare und Handbuch, Fokus kehrt zum Auslöser zurück, sichtbarer
+  Tastaturfokus, Dialoge mit `role="dialog"`.
+- **Sicherheit:** Inline-Script ist per Content-Security-Policy verboten (`script-src 'self'` ohne
+  `unsafe-inline`); alle Klick-Handler laufen über eine Aktions-Liste in `app.js`. Escaping deckt
+  jetzt auch Attribut-Kontexte ab. Backup-Import prüft zusätzlich Kategorie-IDs, Dubletten und die
+  Einstellungen. Fehlermeldungen sind vollständig übersetzt.
+- **Intern:** CSS und JS aus `index.html` in `app.css` / `app.js` ausgelagert; Versionsnummer wird
+  beim Bauen aus `apk/VERSION` gesetzt und im Test gegengeprüft.
+
+**Security-Audit run-1 (13.09.2026, vor dem Release):** 13 Funde, alle behoben und als Regressionstests
+festgehalten. Was sich für Nutzer ändert:
+
+- **Backup wiederherstellen ist jetzt gefahrlos:** Die App fragt nach dem Passwort des Backups und ersetzt
+  die vorhandenen Daten erst, wenn sich das Backup öffnen lässt. Vorher überschrieb eine unbrauchbare oder
+  falsche Datei die einzige Kopie des Tresors (der Fund mit der höchsten Bewertung).
+- **Leeres „Seit"-Datum bleibt leer:** Ein Fixkosten-Eintrag ohne Startdatum gilt für alle Monate. Vorher
+  wurde das Feld bei jeder Bearbeitung still auf „heute" gesetzt, und die Position verschwand aus allen
+  früheren Monaten, Jahresansichten und der Steuer-CSV.
+- **Zeitzonen:** Monatszuordnung und „heute" laufen jetzt in Ortszeit. Vorher rutschten in Amerika
+  Ausgaben vom 1. eines Monats in den Vormonat, und in Europa bekam eine Eingabe zwischen 0 und 2 Uhr das
+  Datum von gestern.
+- **Backup-Import strenger:** doppelte IDs, inaktive Fixkosten ohne Datum, ungültige Kalenderdaten und
+  Nicht-Zahlen bei Auto-Lock werden korrigiert statt übernommen; Eingaben in Formularen werden genauso
+  geprüft wie beim Import. Verwaiste Kategorien bleiben beim Bearbeiten erhalten; der Löschdialog nennt
+  die Kategorie, in die Einträge tatsächlich wandern.
+- **Auto-Lock** startet direkt nach dem Entsperren mit dem eingestellten Wert (vorher einmalig 5 Minuten).
+- **Build:** Codeberg-Token nie mehr in der Prozessliste; die Manifest-Prüfung (keine INTERNET-Permission,
+  kein Backup) bricht den Build jetzt unbedingt ab und prüft auch den zusammengeführten Manifest.
+
 ## v1.6.1 — 2026-09-08
 
 Kleines Folge-Release zu v1.6 nach einem gezielten Sicherheits-Review des neuen Codes

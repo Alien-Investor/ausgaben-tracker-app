@@ -1,0 +1,304 @@
+/* app.css — Ausgaben-Tracker im Familien-Design der Alien-Investor-Apps
+   (gleiches Token-/Bausteinsystem wie Sachwert-Tresor und Alien Pass: Orbitron + Share Tech Mono
+   lokal aus vendor/fonts, :root-Tokens, Soft-Theme, statischer Sternenhimmel + Scanlines, flache
+   Karten mit 4 px Radius). Tracker-Eigenheiten: Bottom-Sheet-Modals fürs Erfassen, Floating-Add-Button. */
+
+:root{
+  --neon:#00ffcc; --neon-dim:rgba(0,255,204,.15); --neon-mid:rgba(0,255,204,.4);
+  --red:#ff4466; --red-dim:rgba(255,68,102,.15);
+  --yellow:#ffcc44; --orange:#ff8844;
+  --bg:#000; --card-bg:#050f0d; --border:rgba(0,255,204,.2);
+  --text-dim:#4a7a6d; --text-mid:#7ab8a8;
+}
+[data-theme="soft"]{
+  --neon:#00c8a0; --neon-dim:rgba(0,200,160,.15); --neon-mid:rgba(0,200,160,.35);
+  --bg:#0d1a2b; --card-bg:#0f2535; --border:rgba(0,200,160,.18);
+  --text-dim:#5d8f82; --text-mid:#8ac8b8; --red:#e03355; --red-dim:rgba(224,51,85,.15);
+}
+[data-theme="soft"] body::after{opacity:.35;}
+*{margin:0;padding:0;box-sizing:border-box;}
+html,body{overflow-x:hidden;}
+body{background:var(--bg);color:var(--neon);font-family:'Share Tech Mono',monospace;min-height:100vh;position:relative;line-height:1.5;}
+/* Sternenhimmel: 8 statische Punkte (kein Twinkle/Nebel/Sternschnuppen mehr — Akku, reduced-motion) */
+body::before{content:'';position:fixed;inset:0;background-image:
+ radial-gradient(1px 1px at 10% 15%,rgba(0,255,204,.4) 0%,transparent 100%),
+ radial-gradient(1px 1px at 30% 40%,rgba(0,255,204,.25) 0%,transparent 100%),
+ radial-gradient(1px 1px at 55% 20%,rgba(0,255,204,.35) 0%,transparent 100%),
+ radial-gradient(1px 1px at 70% 60%,rgba(0,255,204,.2) 0%,transparent 100%),
+ radial-gradient(1px 1px at 85% 30%,rgba(0,255,204,.3) 0%,transparent 100%),
+ radial-gradient(1px 1px at 20% 75%,rgba(0,255,204,.2) 0%,transparent 100%),
+ radial-gradient(1px 1px at 45% 85%,rgba(0,255,204,.3) 0%,transparent 100%),
+ radial-gradient(1px 1px at 90% 80%,rgba(0,255,204,.25) 0%,transparent 100%);
+ pointer-events:none;z-index:0;}
+body::after{content:'';position:fixed;inset:0;background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,.15) 2px,rgba(0,0,0,.15) 4px);pointer-events:none;z-index:1;}
+.container{position:relative;z-index:2;max-width:900px;margin:0 auto;padding:24px 16px 100px;}
+
+/* HEADER — Sprach-Pill links, Hilfe + Sperren rechts, Logo mittig */
+.app-head{text-align:center;position:relative;margin-bottom:24px;}
+.header-glow{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:400px;height:100px;background:radial-gradient(ellipse,rgba(0,255,204,.08) 0%,transparent 70%);pointer-events:none;}
+.logo{font-family:'Orbitron',sans-serif;font-size:clamp(1.3rem,4vw,1.9rem);font-weight:900;letter-spacing:4px;text-transform:uppercase;color:var(--neon);text-shadow:0 0 20px rgba(0,255,204,.7),0 0 40px rgba(0,255,204,.3);}
+.app-head .logo{padding:0 92px;min-height:36px;display:flex;align-items:center;justify-content:center;text-align:center;}
+.tagline{font-size:.72rem;letter-spacing:3px;color:var(--text-dim);text-transform:uppercase;margin-top:6px;}
+.help-btn{position:absolute;top:0;right:0;width:36px;height:36px;border:1px solid var(--neon-mid);border-radius:50%;background:var(--neon-dim);color:var(--neon);font-family:'Orbitron',sans-serif;font-weight:700;font-size:1.05rem;cursor:pointer;z-index:5;display:flex;align-items:center;justify-content:center;}
+.lock-btn{position:absolute;top:0;right:44px;width:36px;height:36px;border:1px solid var(--neon-mid);border-radius:50%;background:var(--neon-dim);color:var(--neon);cursor:pointer;z-index:5;display:flex;align-items:center;justify-content:center;}
+.lock-btn .icon{width:1rem;height:1rem;}
+body.locked .lock-btn{display:none;}
+.lang-btn{position:absolute;top:0;left:0;height:36px;padding:0 10px;border:1px solid var(--neon-mid);border-radius:18px;background:var(--neon-dim);color:var(--neon);font-family:'Orbitron',sans-serif;font-weight:700;font-size:.7rem;letter-spacing:1px;cursor:pointer;z-index:5;}
+.lang-btn:hover,.help-btn:hover,.lock-btn:hover{box-shadow:0 0 12px rgba(0,255,204,.45);}
+/* Schmale Displays: Knopfreihe oben, Logo darunter in voller Breite (DE- und EN-Titel sind lang) */
+@media(max-width:560px){
+  .app-head{padding-top:46px;}
+  .app-head .logo{padding:0;letter-spacing:2px;font-size:clamp(1rem,5.2vw,1.5rem);}
+}
+
+/* CARDS / GENERIC */
+.card{background:var(--card-bg);border:1px solid var(--border);border-radius:4px;padding:18px;margin-bottom:16px;}
+.card p,.card li,.card code,.help-inner p,.help-inner li,.help-inner code{overflow-wrap:break-word;}
+.card h2,.modal h2{font-family:'Orbitron',sans-serif;font-size:.85rem;letter-spacing:2px;text-transform:uppercase;color:var(--neon);margin-bottom:14px;font-weight:700;}
+label{display:block;font-size:.72rem;letter-spacing:1px;color:var(--text-mid);margin:10px 0 4px;text-transform:uppercase;}
+label.chk{display:flex;gap:8px;align-items:center;cursor:pointer;text-transform:none;letter-spacing:0;font-size:.8rem;}
+label.chk input{width:auto;accent-color:var(--neon);}
+input,select,textarea{width:100%;background:rgba(0,0,0,.4);border:1px solid var(--border);border-radius:3px;color:var(--neon);font-family:'Share Tech Mono',monospace;font-size:.9rem;padding:9px 10px;}
+input:focus,select:focus,textarea:focus{outline:none;border-color:var(--neon-mid);box-shadow:0 0 8px rgba(0,255,204,.25);}
+select option{background:#06120f;}
+input::placeholder{color:var(--text-dim);}
+input[type="date"]{color-scheme:dark;}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;background:var(--neon-dim);border:1px solid var(--neon-mid);border-radius:4px;color:var(--neon);font-family:'Orbitron',sans-serif;font-weight:700;font-size:.78rem;letter-spacing:2px;padding:10px 18px;cursor:pointer;text-transform:uppercase;transition:all .2s;text-decoration:none;}
+.btn:hover{background:rgba(0,255,204,.2);box-shadow:0 0 14px rgba(0,255,204,.4);}
+.btn:disabled{opacity:.5;cursor:default;box-shadow:none;}
+.btn.ghost{background:none;border-color:var(--border);color:var(--text-mid);}
+.btn.ghost:hover{border-color:var(--neon-mid);color:var(--neon);box-shadow:none;}
+.btn.danger{background:var(--red-dim);border-color:var(--red);color:var(--red);}
+.btn.danger:hover{box-shadow:0 0 14px rgba(255,68,102,.4);}
+.btn.sm{padding:6px 10px;font-size:.68rem;}
+.btn.icon{padding:6px 8px;letter-spacing:0;}
+.btn.block{width:100%;}
+.row{display:flex;gap:12px;flex-wrap:wrap;}
+.row>*{flex:1;min-width:120px;}
+.muted{color:var(--text-dim);font-size:.78rem;line-height:1.5;}
+.warn{border:1px solid rgba(255,136,68,.4);border-radius:4px;background:rgba(255,136,68,.06);padding:12px;color:var(--orange);font-size:.78rem;line-height:1.5;}
+.ok{border:1px solid var(--neon-mid);border-radius:4px;background:var(--neon-dim);padding:12px;color:var(--neon);font-size:.78rem;line-height:1.5;}
+.hidden{display:none!important;}
+.center{text-align:center;}
+a{color:var(--neon);}
+/* Tastatur-Fokus sichtbar (Buttons, Tabs, Chips, Pills) */
+button:focus-visible,.period-pill:focus-visible,.chip:focus-visible{outline:2px solid var(--neon);outline-offset:2px;}
+
+/* SVG-Icons (currentColor) */
+.icon{width:1em;height:1em;vertical-align:-0.125em;display:inline-block;flex-shrink:0;}
+.icon.lg{width:1.9rem;height:1.9rem;}
+.ic{width:1.1em;height:1.1em;vertical-align:-0.18em;display:inline-block;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;filter:drop-shadow(0 0 3px rgba(0,255,204,.45));}
+.lockicon{display:flex;justify-content:center;margin-bottom:10px;}
+.lockicon .icon{width:2.6rem;height:2.6rem;stroke-width:1.3;color:var(--neon);filter:drop-shadow(0 0 10px rgba(0,255,204,.6));}
+
+/* LOCK / SETUP SCREEN (Gate-Karten unter dem Header, wie Tresor und Alien Pass) */
+.gate{max-width:440px;margin:6vh auto 0;display:none;}
+body.locked .gate.active{display:block;}
+body.locked .app-main,body.locked .add-btn{display:none!important;}
+.gate .card{padding:26px;text-align:center;}
+.gate h2{font-family:'Orbitron',sans-serif;font-size:.95rem;letter-spacing:2px;text-transform:uppercase;color:var(--neon);margin-bottom:8px;}
+.gate .hint{color:var(--text-mid);font-size:.8rem;margin-bottom:16px;line-height:1.5;}
+.gate input{margin-bottom:10px;text-align:left;}
+.gate .auth-err{color:var(--red);font-size:.78rem;min-height:1.1em;margin-bottom:8px;}
+.gate .auth-link{margin-top:14px;}
+.auth-form{display:contents;}
+/* Verstecktes Benutzername-Feld: gibt Passwort-Managern Struktur fürs Autofill,
+   bleibt unsichtbar (display:none würde von Autofill ignoriert). */
+.username-hidden{position:absolute!important;left:-9999px!important;top:0!important;width:1px!important;height:1px!important;opacity:0!important;padding:0!important;margin:0!important;border:0!important;pointer-events:none;}
+/* Datei-Input fürs Wiederherstellen: unsichtbar, aber ohne display:none-Vorfahre (Android-.click()) */
+.file-hidden{display:none;}
+
+/* Passwort anzeigen/verbergen (Auge) */
+.pw-wrap{position:relative;display:block;}
+.pw-wrap input{padding-right:44px!important;}
+.pw-wrap .pw-eye{position:absolute;right:6px;top:0;height:100%;display:flex;align-items:center;justify-content:center;width:38px;padding:0;margin:0;background:none;border:none;box-shadow:none;color:var(--text-dim);cursor:pointer;}
+.pw-wrap .pw-eye:hover{color:var(--neon);box-shadow:none;}
+.pw-wrap .pw-eye .icon{width:1.15rem;height:1.15rem;}
+.gate .pw-wrap .pw-eye{height:calc(100% - 10px);}
+
+/* TABS (oben, umbrechend — sechs Stück) */
+.tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:18px;justify-content:center;}
+.tab{background:none;border:1px solid var(--border);border-radius:2px;color:var(--text-dim);font-family:'Share Tech Mono',monospace;font-size:.74rem;letter-spacing:2px;padding:8px 14px;cursor:pointer;text-transform:uppercase;transition:all .2s;}
+.tab:hover{color:var(--text-mid);border-color:var(--neon-mid);}
+.tab.active{color:var(--neon);background:var(--neon-dim);border-color:var(--neon-mid);}
+@media(max-width:420px){.tab{padding:8px 10px;letter-spacing:1px;font-size:.7rem;}}
+.tab-content{display:none;}
+.tab-content.visible{display:block;}
+
+/* MONATS-/JAHRES-NAVIGATION */
+.month-nav,.year-nav{display:flex;align-items:center;justify-content:center;gap:16px;margin-bottom:18px;}
+.month-nav-btn,.year-nav-btn{background:none;border:1px solid var(--border);border-radius:3px;color:var(--text-mid);font-size:1.1rem;width:34px;height:34px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .2s;}
+.month-nav-btn:hover,.year-nav-btn:hover{border-color:var(--neon-mid);color:var(--neon);}
+.month-nav-btn:disabled,.year-nav-btn:disabled{opacity:.3;cursor:default;}
+.month-nav-btn:disabled:hover,.year-nav-btn:disabled:hover{border-color:var(--border);color:var(--text-mid);}
+.month-label,.year-label{font-family:'Orbitron',sans-serif;font-size:.95rem;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--neon);min-width:170px;text-align:center;}
+.month-label .year-hint{color:var(--text-dim);font-size:.75rem;font-weight:400;}
+
+/* STAT-KARTEN (Übersicht, Fixkosten-/Schulden-Kopf) */
+.summary-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:16px;}
+.summary-card{background:var(--card-bg);border:1px solid var(--border);border-radius:4px;padding:14px;}
+.summary-card .label,.fc-stat .label{font-size:.66rem;letter-spacing:2px;color:var(--text-dim);text-transform:uppercase;}
+.summary-card .value,.fc-stat .value{font-family:'Orbitron',sans-serif;font-size:1.2rem;font-weight:700;margin-top:6px;color:var(--neon);word-break:break-word;}
+.summary-card .value.positive{color:var(--neon);}
+.summary-card .value.negative{color:var(--orange);}
+.summary-card .sub,.fc-stat .sub{font-size:.7rem;color:var(--text-mid);margin-top:4px;}
+.fc-summary{background:var(--card-bg);border:1px solid var(--border);border-radius:4px;padding:14px 18px;margin-bottom:16px;display:flex;gap:24px;}
+.fc-stat{flex:1;}
+.fc-stat .value.warn{color:var(--red);border:none;background:none;padding:0;}
+
+/* ABSCHNITTS-KOPF + LISTEN */
+.section-hd{display:flex;justify-content:space-between;align-items:center;margin:20px 0 10px;padding-bottom:8px;border-bottom:1px solid var(--border);}
+.section-hd h2{font-family:'Orbitron',sans-serif;font-size:.72rem;letter-spacing:2px;text-transform:uppercase;color:var(--text-mid);font-weight:700;}
+.section-hd .section-total{font-family:'Orbitron',sans-serif;font-size:.8rem;color:var(--neon);font-weight:700;}
+.item-list{display:flex;flex-direction:column;gap:6px;}
+.expense-item,.fixed-item{background:var(--card-bg);border:1px solid var(--border);border-radius:4px;padding:11px 12px;display:flex;justify-content:space-between;align-items:center;transition:border-color .2s;}
+.expense-item:hover,.fixed-item:hover{border-color:var(--neon-mid);}
+.fixed-item.inactive{opacity:.45;border-style:dashed;}
+.item-left{display:flex;flex-direction:column;gap:3px;flex:1;min-width:0;}
+.item-name{font-size:.9rem;color:var(--neon);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.item-meta{display:flex;align-items:center;gap:6px;flex-wrap:wrap;}
+.item-note{font-size:.72rem;color:var(--text-dim);font-style:italic;}
+.item-subnote{font-size:.72rem;color:var(--text-dim);margin-top:2px;font-style:italic;}
+.item-date{font-size:.72rem;color:var(--text-dim);white-space:nowrap;}
+.item-right{display:flex;align-items:center;gap:8px;flex-shrink:0;}
+.item-amount{font-family:'Orbitron',sans-serif;font-weight:700;font-size:.82rem;color:var(--neon);white-space:nowrap;}
+.item-period{font-family:'Share Tech Mono',monospace;font-size:.65rem;color:var(--text-dim);font-weight:400;}
+.item-actions{display:flex;gap:2px;}
+.action-btn{background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:.85rem;padding:5px 6px;border-radius:3px;transition:all .2s;line-height:1;}
+.action-btn:hover{color:var(--neon);background:var(--neon-dim);}
+.action-btn.danger:hover{color:var(--red);background:var(--red-dim);}
+.action-btn.success{color:var(--neon);}
+.action-btn.success:hover{color:var(--neon);}
+
+/* PILLS (Kategorie, Fälligkeit, Nutzung, Inaktiv) */
+.pill,.cat-tag,.due-badge,.usage-badge,.inactive-label{display:inline-block;padding:1px 7px;border-radius:10px;font-size:.62rem;letter-spacing:.5px;border:1px solid;white-space:nowrap;}
+.cat-tag{color:var(--yellow);border-color:rgba(255,204,68,.35);}
+.usage-badge{color:var(--neon);border-color:var(--neon-mid);background:var(--neon-dim);}
+.usage-badge .icon{width:.85em;height:.85em;margin-right:2px;}
+.due-badge{color:var(--text-mid);border-color:var(--border);}
+.due-badge.soon,.inactive-label{color:var(--orange);border-color:rgba(255,136,68,.5);}
+.due-badge.overdue{color:var(--red);border-color:var(--red);font-weight:700;}
+.inactive-section-title{font-size:.66rem;color:var(--text-dim);text-transform:uppercase;letter-spacing:2px;margin:16px 0 8px;}
+
+/* LEER / LADEN / FEHLER */
+.empty-state,.loading{text-align:center;padding:30px 10px;color:var(--text-dim);font-size:.82rem;line-height:1.6;}
+.empty-state .icon.lg{color:var(--text-dim);margin-bottom:8px;}
+.error-banner{border:1px solid var(--red);border-radius:4px;background:var(--red-dim);color:var(--red);padding:10px 14px;margin-bottom:14px;font-size:.82rem;}
+
+/* FIXKOSTEN / SCHULDEN: Hinzufügen-Button */
+.fc-add-btn{margin-bottom:14px;}
+
+/* JAHRESÜBERSICHT */
+.annual-wrap{overflow-x:auto;}
+.annual-table{width:100%;border-collapse:collapse;font-size:.82rem;}
+.annual-table th,.annual-table td{text-align:left;padding:9px 10px;border-bottom:1px solid var(--border);white-space:nowrap;}
+.annual-table th{color:var(--text-dim);font-size:.66rem;letter-spacing:1px;text-transform:uppercase;}
+.annual-table th:not(:first-child),.annual-table td:not(:first-child){text-align:right;}
+.annual-table td{color:var(--text-mid);}
+.annual-table tr:hover td{color:var(--neon);}
+.annual-table tr.current-month td{background:var(--neon-dim);}
+.annual-table tr.current-month .month-name{color:var(--neon);}
+.annual-table tr.future-month td{opacity:.35;}
+.annual-table .col-total{color:var(--neon);font-family:'Orbitron',sans-serif;font-size:.74rem;}
+.annual-table .dash{color:var(--text-dim);opacity:.5;}
+.annual-table tr.total-row td{border-top:1px solid var(--neon-mid);border-bottom:none;font-family:'Orbitron',sans-serif;font-size:.76rem;color:var(--neon);padding-top:14px;}
+
+/* FLOATING ADD BUTTON (Tracker-Eigenheit: Ausgabe ist die häufigste Aktion) */
+.add-btn{position:fixed;bottom:24px;right:24px;width:56px;height:56px;border-radius:50%;background:var(--card-bg);border:1px solid var(--neon-mid);color:var(--neon);font-family:'Orbitron',sans-serif;font-size:1.7rem;font-weight:700;cursor:pointer;box-shadow:0 0 18px rgba(0,255,204,.35);display:flex;align-items:center;justify-content:center;z-index:100;transition:all .2s;}
+.add-btn:hover{background:var(--neon-dim);box-shadow:0 0 28px rgba(0,255,204,.55);}
+
+/* MODALS (Bottom-Sheet auf dem Handy, mittig ab Tablet) */
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,4,3,.85);z-index:200;align-items:flex-end;justify-content:center;backdrop-filter:blur(3px);}
+.modal-overlay.open{display:flex;}
+.modal{background:var(--card-bg);border:1px solid var(--neon-mid);border-bottom:none;border-radius:4px 4px 0 0;padding:22px 20px 24px;width:100%;max-width:520px;max-height:90vh;overflow-y:auto;box-shadow:0 0 30px rgba(0,255,204,.2);}
+@media(min-width:700px){.modal-overlay{align-items:center;}.modal{border-radius:4px;border-bottom:1px solid var(--neon-mid);}}
+.form-group{margin-bottom:12px;}
+.form-group label{margin-top:0;}
+.form-row{display:flex;gap:10px;}
+.form-row .form-group{flex:1;min-width:0;}
+.period-pills{display:flex;gap:8px;}
+.period-pill{flex:1;background:none;border:1px solid var(--border);color:var(--text-dim);padding:8px;border-radius:3px;cursor:pointer;font-family:inherit;font-size:.74rem;letter-spacing:1px;text-transform:uppercase;text-align:center;transition:all .2s;}
+.period-pill:hover{color:var(--text-mid);border-color:var(--neon-mid);}
+.period-pill.active{color:var(--neon);background:var(--neon-dim);border-color:var(--neon-mid);}
+.form-actions{display:flex;gap:10px;margin-top:18px;}
+.form-actions .btn{flex:1;}
+.backup-actions{display:flex;flex-direction:column;gap:10px;margin-top:8px;}
+.card .hint{font-size:.78rem;color:var(--text-dim);margin-top:14px;line-height:1.5;}
+.card .hint strong{color:var(--text-mid);}
+
+/* SCHULDEN (Verbindlichkeiten) */
+.liab-item{gap:10px;}
+.liab-item.done{opacity:.45;border-style:dashed;}
+.liab-item.done .item-name,.liab-item.done .item-amount{text-decoration:line-through;color:var(--text-mid);}
+.liab-item.overdue{border-color:rgba(255,68,102,.5);}
+.liab-check{flex-shrink:0;width:24px;height:24px;border-radius:3px;border:1px solid var(--neon-mid);background:transparent;color:#000;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;transition:all .2s;}
+.liab-check:hover{background:var(--neon-dim);box-shadow:0 0 10px rgba(0,255,204,.3);}
+.liab-check.checked{background:var(--neon);border-color:var(--neon);}
+.liab-check .icon{width:15px;height:15px;}
+.liab-item.done .liab-check{border-color:var(--text-dim);background:var(--text-dim);}
+
+/* TOAST */
+.toast{position:fixed;bottom:92px;left:50%;transform:translateX(-50%);background:var(--card-bg);border:1px solid var(--neon-mid);color:var(--neon);padding:10px 18px;border-radius:4px;z-index:300;font-size:.8rem;letter-spacing:1px;box-shadow:0 0 20px rgba(0,255,204,.3);max-width:92vw;text-align:center;opacity:0;transition:opacity .3s;pointer-events:none;}
+.toast.err{border-color:var(--red);color:var(--red);box-shadow:0 0 20px rgba(255,68,102,.3);}
+.toast.show{opacity:1;}
+
+/* FOOTER */
+.foot{text-align:center;color:var(--text-dim);font-size:.7rem;letter-spacing:1px;margin-top:30px;line-height:1.7;}
+
+/* RESPONSIVE */
+@media(max-width:400px){
+  .summary-grid{grid-template-columns:1fr 1fr;}
+  .summary-card .value{font-size:1.05rem;}
+  .fc-summary{flex-direction:column;gap:12px;}
+  .month-label{min-width:140px;font-size:.85rem;}
+}
+@media(prefers-reduced-motion:reduce){*{transition:none!important;}}
+
+/* SEGMENT-CONTROL, ZEILEN-EINGABE, CHIPS (Familienbausteine) */
+.seg{display:flex;gap:8px;margin-bottom:4px;}
+.seg button{flex:1;background:none;border:1px solid var(--border);color:var(--text-dim);padding:8px;border-radius:3px;cursor:pointer;font-family:inherit;font-size:.74rem;letter-spacing:1px;text-transform:uppercase;}
+.seg button.on{color:var(--neon);background:var(--neon-dim);border-color:var(--neon-mid);}
+.xrow{display:flex;gap:8px;align-items:stretch;}
+.xrow input{flex:1;min-width:0;}
+.xrow button{flex:0 0 auto;}
+.search-row{display:flex;gap:8px;align-items:center;margin-bottom:10px;}
+.search-row input{flex:1;}
+.chips{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px;}
+.chip{background:none;border:1px solid var(--border);border-radius:12px;color:var(--text-dim);font-family:'Share Tech Mono',monospace;font-size:.72rem;letter-spacing:1px;padding:4px 11px;cursor:pointer;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.chip.on{color:var(--neon);background:var(--neon-dim);border-color:var(--neon-mid);}
+
+/* KATEGORIEN-VERWALTUNG (Einstellungen) + KATEGORIE-AUFSCHLÜSSELUNG (Übersicht) */
+.cat-list{display:flex;flex-direction:column;}
+.cat-row{display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--border);}
+.cat-row .cat-name{flex:1;min-width:0;font-size:.88rem;color:var(--neon);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.cat-row .cat-count{font-size:.7rem;color:var(--text-dim);white-space:nowrap;}
+.cat-row input{flex:1;min-width:0;padding:6px 8px;font-size:.85rem;}
+.cat-bars{display:flex;flex-direction:column;gap:10px;}
+.cat-bar{display:grid;grid-template-columns:1fr auto;gap:4px 10px;align-items:center;font-size:.8rem;}
+.cat-bar .cb-name{color:var(--text-mid);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.cat-bar .cb-track{grid-column:1/-1;height:6px;background:rgba(0,0,0,.4);border:1px solid var(--border);border-radius:2px;overflow:hidden;}
+.cat-bar .cb-fill{height:100%;background:var(--neon);box-shadow:0 0 8px var(--neon);}
+.cat-bar .cb-val{font-family:'Orbitron',sans-serif;font-size:.7rem;color:var(--neon);white-space:nowrap;text-align:right;}
+.cat-bar .cb-pct{color:var(--text-dim);font-family:'Share Tech Mono',monospace;font-size:.66rem;margin-left:4px;}
+
+/* HANDBUCH-OVERLAY */
+.help-overlay{position:fixed;inset:0;background:rgba(0,8,6,.975);z-index:400;overflow-y:auto;-webkit-overflow-scrolling:touch;}
+.help-inner{max-width:760px;margin:0 auto;padding:0 18px 60px;}
+.help-head{display:flex;align-items:center;justify-content:space-between;gap:10px;position:sticky;top:0;background:rgba(0,8,6,.99);padding:16px 0 12px;border-bottom:1px solid var(--neon-dim);margin-bottom:6px;z-index:2;}
+.help-head .logo{font-size:1.05rem;overflow-wrap:anywhere;text-align:left;}
+.help-inner h2{font-family:'Orbitron',sans-serif;color:var(--neon);font-size:.92rem;letter-spacing:2px;margin:24px 0 8px;text-transform:uppercase;}
+.help-inner p{font-size:.86rem;line-height:1.65;color:var(--text-mid);margin:6px 0;}
+.help-inner ul{margin:6px 0 6px 18px;}
+.help-inner li{font-size:.86rem;line-height:1.6;color:var(--text-mid);margin:4px 0;}
+.help-inner strong{color:var(--neon);}
+.help-inner code{background:rgba(0,255,204,.1);padding:1px 5px;border-radius:3px;font-size:.82rem;}
+.help-inner .warn{color:#ffcc66;}
+
+/* Jahrestabelle auf schmalen Displays: vier Spalten ohne Überlauf */
+@media(max-width:480px){
+  .annual-table{font-size:.72rem;}
+  .annual-table th,.annual-table td{padding:8px 5px;}
+  .annual-table .col-total{font-size:.66rem;}
+  .annual-table tr.total-row td{font-size:.68rem;}
+  #tab-annual .card{padding:12px 8px;}
+}

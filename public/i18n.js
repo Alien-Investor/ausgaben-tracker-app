@@ -1,19 +1,33 @@
 'use strict';
-// i18n.js — DE/EN für den Ausgaben-Tracker. UI-Strings im Wörterbuch, t(key,vars) für
-// JS, data-i18n / data-i18n-ph für statisches HTML. Sprache in localStorage 'ausg-lang'.
+// i18n.js — DE/EN für den Ausgaben-Tracker. UI-Strings im Wörterbuch, t(key,vars) für JS,
+// data-i18n (textContent) / data-i18n-html (innerHTML, nur Wörterbuch-HTML) / data-i18n-ph /
+// data-i18n-title für statisches HTML. Sprache in localStorage 'ausg-lang'.
+// Reihenfolge beim Start: ?lang= (sprachfeste Screenshots) → gespeicherte Wahl → Systemsprache.
 window.I18N = (function () {
   const LS = 'ausg-lang';
-  let lang = localStorage.getItem(LS) || 'de';
+  function detect() {
+    try {
+      const q = new URLSearchParams(location.search).get('lang');
+      if (q === 'de' || q === 'en') { localStorage.setItem(LS, q); return q; }
+      const saved = localStorage.getItem(LS);
+      if (saved === 'de' || saved === 'en') return saved;
+      const sys = (navigator.language || '').toLowerCase();
+      return sys.startsWith('de') ? 'de' : 'en';
+    } catch (_) { return 'de'; }
+  }
+  let lang = detect();
 
   const UI = {
     de: {
       'app.title': 'Ausgaben-Tracker',
       'header.subtitle': 'Alien Investor · Persönliche Finanzen',
-      'nav.overview': 'Übersicht', 'nav.annual': 'Jahresübers.', 'nav.fixed': 'Fixkosten', 'nav.export': 'Export',
+      'nav.overview': 'Übersicht', 'nav.annual': 'Jahr', 'nav.fixed': 'Fixkosten', 'nav.export': 'Export', 'nav.settings': 'Einstellungen',
       'dash.total': 'Gesamt', 'dash.fixed': 'Fixkosten', 'dash.variable': 'Variabel', 'dash.vsPrev': 'vs Vormonat',
       'dash.monthlyLoad': 'monatl. Last', 'dash.entered': 'eingetragen', 'dash.before': '{x} vorher',
       'dash.sectionFixed': 'Fixkosten', 'dash.sectionVariable': 'Variable Ausgaben',
       'dash.emptyFixed': 'Keine aktiven Fixkosten', 'dash.emptyExpense': 'Noch keine variablen Ausgaben',
+      'dash.byCategory': 'Nach Kategorie', 'dash.searchPh': 'Suchen (Name, Notiz) …', 'dash.noMatch': 'Keine Treffer für den Filter',
+      'dash.filterAll': 'Alle', 'dash.filtered': '{n} von {total} gefiltert',
       'annual.month': 'Monat', 'annual.fixed': 'Fixkosten', 'annual.variable': 'Variabel', 'annual.total': 'Gesamt',
       'annual.totalYear': 'Gesamt {year}',
       'fixed.monthly': 'Monatlich', 'fixed.fixedTotal': 'Fixkosten gesamt', 'fixed.yearly': 'Jährlich', 'fixed.projection': 'Projektion',
@@ -25,9 +39,9 @@ window.I18N = (function () {
       'export.csvTitle': 'CSV-Export', 'export.year': 'Jahr', 'export.monthOpt': 'Monat (optional)', 'export.wholeYear': 'Ganzes Jahr',
       'export.downloadCsv': 'CSV herunterladen', 'export.fixedSummary': 'Fixkosten-Zusammenfassung (CSV)',
       'export.hint': '<strong>CSV herunterladen:</strong> alle variablen Ausgaben und Fixkosten (monatlich amortisiert) im gewählten Zeitraum — jede Fixkostenposition pro Monat eine Zeile.<br><strong>Fixkosten-Zusammenfassung:</strong> jede Fixkostenposition nur <em>einmal</em>, mit Monats- und Jahresbetrag, sortiert nach Höhe — ideal zum Ausmisten. Stichtag ist der gewählte Monat (ohne Monatswahl der aktuelle Monat).<br>Beide kompatibel mit Excel, LibreOffice Calc und Google Sheets.',
-      'export.backupTitle': 'Backup & Daten', 'export.backupExport': 'Verschlüsseltes Backup exportieren (.vault)',
-      'export.backupRestore': 'Backup wiederherstellen (.vault)', 'export.changePass': 'Master-Passwort ändern',
-      'export.backupHint': 'Das <strong>.vault</strong>-Backup ist mit deinem Master-Passwort verschlüsselt — der einzige Weg, Daten auf ein anderes Gerät zu übertragen. Nach dem Wiederherstellen entsperrst du mit dem Passwort des Backups.',
+      'export.backupTitle': 'Backup', 'export.backupExport': 'Verschlüsseltes Backup exportieren (.vault)',
+      'export.backupRestore': 'Backup wiederherstellen (.vault)',
+      'export.backupHint': 'Das <strong>.vault</strong>-Backup ist mit deinem Master-Passwort verschlüsselt — der einzige Weg, Daten auf ein anderes Gerät zu übertragen. Beim Wiederherstellen fragt die App nach dem Passwort des Backups; die vorhandenen Daten werden erst ersetzt, wenn sich das Backup öffnen lässt.',
       'modal.expenseAdd': 'Ausgabe hinzufügen', 'modal.expenseEdit': 'Ausgabe bearbeiten',
       'modal.fixedAdd': 'Fixkosten hinzufügen', 'modal.fixedEdit': 'Fixkosten bearbeiten',
       'modal.label': 'Bezeichnung *', 'modal.amount': 'Betrag (€) *', 'modal.date': 'Datum', 'modal.category': 'Kategorie',
@@ -41,21 +55,33 @@ window.I18N = (function () {
       'auth.setupTitle': 'Tresor einrichten',
       'auth.setupHint': 'Vergib ein Master-Passwort. Es verschlüsselt alle Daten lokal auf dem Gerät — ohne dieses Passwort gibt es keinen Zugriff und keine Wiederherstellung.',
       'auth.setupPh1': 'Passwort (min. 8 Zeichen)', 'auth.setupPh2': 'Passwort wiederholen', 'auth.setupBtn': 'Tresor erstellen',
+      'auth.unlockTitle': 'Tresor gesperrt',
       'auth.unlockHint': 'Master-Passwort eingeben, um die verschlüsselten Daten zu entsperren.',
       'auth.unlockPh': 'Master-Passwort', 'auth.unlockBtn': 'Entsperren', 'auth.unlocking': 'Entschlüssele…',
       'auth.restore': 'Aus Backup wiederherstellen (.vault)',
-      'addBtn.title': 'Ausgabe hinzufügen', 'btn.lock': 'Sperren',
+      'addBtn.title': 'Ausgabe hinzufügen', 'btn.lock': 'Sperren', 'pw.toggle': 'Passwort anzeigen / verbergen',
       'toast.expSaved': 'Ausgabe gespeichert', 'toast.expUpdated': 'Ausgabe aktualisiert', 'toast.deleted': 'Gelöscht',
       'toast.fcAdded': 'Fixkosten hinzugefügt', 'toast.fcUpdated': 'Fixkosten aktualisiert',
       'toast.activated': 'Aktiviert', 'toast.deactivated': 'Deaktiviert',
       'toast.csv': 'CSV exportiert', 'toast.fixedSummary': 'Fixkosten-Zusammenfassung exportiert',
-      'toast.backupExported': 'Backup exportiert', 'toast.backupLoaded': 'Backup geladen — bitte entsperren',
+      'toast.backupExported': 'Backup exportiert',
       'toast.passChanged': 'Passwort geändert', 'toast.vaultCreated': 'Tresor erstellt', 'toast.autolocked': 'Automatisch gesperrt',
       'toast.reqFields': 'Name und Betrag sind Pflichtfelder', 'toast.passMismatch': 'Passwörter stimmen nicht überein',
-      'toast.noVault': 'Kein Vault vorhanden',
+      'toast.noVault': 'Kein Vault vorhanden', 'toast.settingsSaved': 'Einstellung gespeichert',
+      'toast.catAdded': 'Kategorie angelegt', 'toast.catRenamed': 'Kategorie umbenannt', 'toast.catDeleted': 'Kategorie gelöscht',
       'confirm.delExpense': 'Ausgabe löschen?', 'confirm.delFixed': 'Fixkosten-Eintrag dauerhaft löschen?',
-      'confirm.restore': 'Aktuelle Daten durch das Backup ersetzen? Danach mit dem Passwort des Backups entsperren.',
+      'confirm.delCat': 'Kategorie „{name}“ löschen? Zugeordnete Einträge wandern nach „{fb}“.',
+      'restore.title': 'Backup wiederherstellen', 'restore.passLabel': 'Passwort des Backups', 'restore.btn': 'Wiederherstellen',
+      'restore.hint': 'Die aktuellen Daten auf diesem Gerät werden durch das Backup ersetzt. Das passiert erst, wenn sich das Backup mit seinem Passwort öffnen lässt — eine unbrauchbare Datei kann nichts überschreiben.',
+      'restore.file': 'Datei: {name}', 'toast.backupRestored': 'Backup wiederhergestellt',
+      'toast.catDeletedTo': 'Kategorie gelöscht — Einträge jetzt unter „{target}“',
+      'err.tooLarge': 'Datei zu groß für den Gerätespeicher', 'err.unknown': 'Unerwarteter Fehler',
       'err.prefix': 'Fehler: ', 'err.wrongPass': 'Falsches Passwort', 'err.shortPass': 'Passwort muss mindestens 8 Zeichen haben',
+      'err.locked': 'Tresor gesperrt', 'err.noVault': 'Kein Vault vorhanden', 'err.corrupt': 'Tresor beschädigt',
+      'err.wrongCurrentPass': 'Aktuelles Passwort falsch', 'err.badBackup': 'Keine gültige Backup-Datei',
+      'err.required': 'Pflichtfelder fehlen', 'err.catExists': 'Kategorie existiert bereits', 'err.notFound': 'Eintrag nicht gefunden',
+      'err.badAmount': 'Ungültiger Betrag', 'err.badValue': 'Ungültiger Wert', 'err.route': 'Unbekannte Aktion',
+      'err.lastCategory': 'Die letzte Kategorie kann nicht gelöscht werden', 'err.filesystem': 'Dateisystem-Plugin fehlt',
       // Verbindlichkeiten (v1.6)
       'nav.liab': 'Schulden',
       'liab.open': 'Offen', 'liab.openTotal': 'Verbindlichkeiten gesamt', 'liab.count': 'Posten',
@@ -70,15 +96,48 @@ window.I18N = (function () {
       'toast.liabAdded': 'Verbindlichkeit gespeichert', 'toast.liabUpdated': 'Verbindlichkeit aktualisiert',
       'toast.liabDone': 'Abgehakt', 'toast.liabReopened': 'Wieder geöffnet', 'toast.liabBooked': 'Ausgabe gebucht und abgehakt',
       'confirm.delLiab': 'Verbindlichkeit dauerhaft löschen?',
+      // Einstellungen (v1.7)
+      'set.secTitle': 'Sicherheit', 'set.autolock': 'Sperren nach Inaktivität',
+      'set.off': 'Aus', 'set.al1': '1 Minute', 'set.al5': '5 Minuten', 'set.al15': '15 Minuten', 'set.al30': '30 Minuten',
+      'set.autolockNote': 'Gilt auch, wenn die App länger im Hintergrund war. Beim Sperren werden alle entschlüsselten Daten aus der Anzeige entfernt.',
+      'set.lockNow': 'Jetzt sperren', 'set.passNote': 'Bereits exportierte .vault-Backups behalten ihr altes Passwort.',
+      'set.themeTitle': 'Darstellung', 'set.themeDark': 'Schwarz (Neon)', 'set.themeSoft': 'Soft (Marine)',
+      'set.catTitle': 'Kategorien', 'set.catPh': 'Neue Kategorie', 'set.catAdd': 'Hinzufügen',
+      'set.catNote': 'Beim Umbenennen werden vorhandene Einträge mit umbenannt. Beim Löschen wandern die Einträge in die Auffang-Kategorie („Sonstiges“).',
+      'set.catRename': 'Umbenennen', 'set.catDelete': 'Löschen', 'set.catOk': 'OK', 'set.catCancel': 'Abbrechen', 'set.catCount': '{n} Einträge', 'set.catCount1': '1 Eintrag',
+      'set.aboutTitle': 'Über',
+      'set.aboutText': 'Offline-Ausgaben-Tracker von Alien Investor. Alle Daten liegen als ein verschlüsselter Tresor nur auf diesem Gerät — keine Cloud, kein Konto, keine Telemetrie, keine Internet-Berechtigung.',
+      'about': 'Ausgaben-Tracker v{v} · AES-256-GCM · PBKDF2-SHA256 (600k) · 100 % lokal',
+      'foot.line1': 'Alien Investor · Ausgaben-Tracker · 100 % lokal · keine Cloud · keine Telemetrie',
+      'foot.line2': 'Verschlüsselung: AES-256-GCM · PBKDF2-SHA256 (600k) · WebCrypto',
+      // Handbuch
+      'help.btn': 'Handbuch', 'help.title': 'Handbuch', 'help.closeX': 'Schließen ✕',
+      'help.h1': 'Was ist der Ausgaben-Tracker?',
+      'help.p1': 'Ein <strong>lokaler, verschlüsselter Ausgaben-Tracker</strong>. Läuft komplett <strong>offline</strong> — keine Cloud, kein Server, keine Telemetrie, kein Konto. Die Android-App hat nicht einmal eine Internet-Berechtigung. Deine Ausgaben verlassen das Gerät nie.',
+      'help.warn': '⚠ Es gibt keinen Reset und keine Hintertür. Vergisst du dein Master-Passwort, sind die Daten unwiederbringlich weg. Lege regelmäßig ein Backup an (Tab „Export“).',
+      'help.h2': 'Erste Schritte',
+      'help.l2': '<li><strong>Master-Passwort</strong> vergeben — mindestens 8 Zeichen, besser eine lange Passphrase. Daraus wird der Schlüssel abgeleitet, der alle Daten verschlüsselt.</li><li>Ausgaben über den <strong>+</strong>-Knopf erfassen: Bezeichnung, Betrag, Datum, Kategorie, optional eine Notiz.</li><li>Die <strong>Übersicht</strong> zeigt pro Monat Gesamtlast, Fixkosten, variable Ausgaben, den Vergleich zum Vormonat und die Aufteilung nach Kategorie. Suchfeld und Kategorie-Chips filtern die Liste.</li>',
+      'help.h3': 'Fixkosten',
+      'help.l3': '<li>Einmal anlegen, sie fließen automatisch in jeden Monat. <strong>Jährliche</strong> Beträge werden für die Monatsansicht durch 12 geteilt.</li><li><strong>Seit</strong>-Datum und <strong>Pause</strong>: Der Tracker rechnet historisch korrekt — ein gekündigtes Abo bleibt in den Monaten davor enthalten und verschwindet erst ab dem Kündigungsmonat.</li><li><strong>Steuerliche Nutzung</strong> (privat / betrieblich / anteilig) landet in der Fixkosten-Zusammenfassung für den Steuerberater.</li>',
+      'help.h4': 'Schulden',
+      'help.l4': '<li>Offene Zahlungen mit Betrag, Fälligkeit und Notiz notieren. Überfällige Posten erscheinen rot, in den nächsten sieben Tagen fällige orange.</li><li><strong>Abhaken + als Ausgabe buchen</strong> öffnet das Ausgaben-Formular vorbefüllt; nach dem Speichern ist der Posten erledigt und die Zahlung steht in der Monatsübersicht. Normales Abhaken bucht keine Ausgabe.</li>',
+      'help.h5': 'Export',
+      'help.l5': '<li><strong>CSV herunterladen</strong>: variable Ausgaben plus monatlich amortisierte Fixkosten für ein Jahr oder einen Monat — für Excel, LibreOffice Calc und Google Sheets.</li><li><strong>Fixkosten-Zusammenfassung</strong>: jede Position genau einmal mit Monats- und Jahresbetrag, nach Höhe sortiert — zum Ausmisten und für die Steuer.</li>',
+      'help.h6': 'Backup',
+      'help.l6': '<li><strong>Verschlüsseltes Backup (.vault)</strong>: der komplette Tresor als eine Datei, geschützt mit deinem Master-Passwort. Der einzige Weg, Daten auf ein anderes Gerät zu bringen.</li><li><strong>Wiederherstellen</strong> ersetzt die Daten auf dem Gerät — aber erst, nachdem sich das Backup mit seinem Passwort öffnen ließ. Auch vom Sperrbildschirm aus möglich.</li><li>Faustregel: nach jeder größeren Eingabe ein Backup ziehen und außerhalb des Handys ablegen.</li>',
+      'help.h7': 'Sicherheit',
+      'help.l7': '<li>Verschlüsselung mit <strong>AES-256-GCM</strong>, Schlüsselableitung <strong>PBKDF2-SHA256</strong> mit 600.000 Runden (WebCrypto des Systems).</li><li><strong>Auto-Lock</strong>: nach der in den Einstellungen gewählten Zeit ohne Eingabe oder nach längerer Zeit im Hintergrund sperrt die App und entfernt alle Daten aus der Anzeige.</li><li>Die Android-App fordert <strong>keine einzige Berechtigung</strong> an, blockiert Screenshots und Bildschirmaufnahmen und landet in keinem System-Backup.</li><li>Der Quellcode ist öffentlich (Codeberg); die Signatur der APK lässt sich mit AppVerifier gegen den veröffentlichten Fingerabdruck prüfen.</li>',
     },
     en: {
       'app.title': 'Expense Tracker',
       'header.subtitle': 'Alien Investor · Personal Finance',
-      'nav.overview': 'Overview', 'nav.annual': 'Annual', 'nav.fixed': 'Fixed costs', 'nav.export': 'Export',
+      'nav.overview': 'Overview', 'nav.annual': 'Year', 'nav.fixed': 'Fixed costs', 'nav.export': 'Export', 'nav.settings': 'Settings',
       'dash.total': 'Total', 'dash.fixed': 'Fixed', 'dash.variable': 'Variable', 'dash.vsPrev': 'vs prev. month',
       'dash.monthlyLoad': 'monthly load', 'dash.entered': 'logged', 'dash.before': '{x} before',
       'dash.sectionFixed': 'Fixed costs', 'dash.sectionVariable': 'Variable expenses',
       'dash.emptyFixed': 'No active fixed costs', 'dash.emptyExpense': 'No variable expenses yet',
+      'dash.byCategory': 'By category', 'dash.searchPh': 'Search (name, note) …', 'dash.noMatch': 'No entries match the filter',
+      'dash.filterAll': 'All', 'dash.filtered': '{n} of {total} shown',
       'annual.month': 'Month', 'annual.fixed': 'Fixed', 'annual.variable': 'Variable', 'annual.total': 'Total',
       'annual.totalYear': 'Total {year}',
       'fixed.monthly': 'Monthly', 'fixed.fixedTotal': 'fixed costs total', 'fixed.yearly': 'Yearly', 'fixed.projection': 'projection',
@@ -90,9 +149,9 @@ window.I18N = (function () {
       'export.csvTitle': 'CSV export', 'export.year': 'Year', 'export.monthOpt': 'Month (optional)', 'export.wholeYear': 'Whole year',
       'export.downloadCsv': 'Download CSV', 'export.fixedSummary': 'Fixed costs summary (CSV)',
       'export.hint': '<strong>Download CSV:</strong> all variable expenses and fixed costs (monthly amortized) for the selected period — one row per fixed cost per month.<br><strong>Fixed costs summary:</strong> each fixed cost <em>once</em>, with monthly and yearly amount, sorted by size — ideal for cleaning up. The reference date is the selected month (current month if none chosen).<br>Both compatible with Excel, LibreOffice Calc and Google Sheets.',
-      'export.backupTitle': 'Backup & data', 'export.backupExport': 'Export encrypted backup (.vault)',
-      'export.backupRestore': 'Restore backup (.vault)', 'export.changePass': 'Change master password',
-      'export.backupHint': 'The <strong>.vault</strong> backup is encrypted with your master password — the only way to move data to another device. After restoring, unlock with the backup\'s password.',
+      'export.backupTitle': 'Backup', 'export.backupExport': 'Export encrypted backup (.vault)',
+      'export.backupRestore': 'Restore backup (.vault)',
+      'export.backupHint': 'The <strong>.vault</strong> backup is encrypted with your master password — the only way to move data to another device. When restoring, the app asks for the backup\'s password; existing data is only replaced once the backup opens.',
       'modal.expenseAdd': 'Add expense', 'modal.expenseEdit': 'Edit expense',
       'modal.fixedAdd': 'Add fixed cost', 'modal.fixedEdit': 'Edit fixed cost',
       'modal.label': 'Name *', 'modal.amount': 'Amount (€) *', 'modal.date': 'Date', 'modal.category': 'Category',
@@ -106,21 +165,33 @@ window.I18N = (function () {
       'auth.setupTitle': 'Set up vault',
       'auth.setupHint': 'Choose a master password. It encrypts all data locally on the device — without it there is no access and no recovery.',
       'auth.setupPh1': 'Password (min. 8 chars)', 'auth.setupPh2': 'Repeat password', 'auth.setupBtn': 'Create vault',
+      'auth.unlockTitle': 'Vault locked',
       'auth.unlockHint': 'Enter your master password to unlock the encrypted data.',
       'auth.unlockPh': 'Master password', 'auth.unlockBtn': 'Unlock', 'auth.unlocking': 'Decrypting…',
       'auth.restore': 'Restore from backup (.vault)',
-      'addBtn.title': 'Add expense', 'btn.lock': 'Lock',
+      'addBtn.title': 'Add expense', 'btn.lock': 'Lock', 'pw.toggle': 'Show / hide password',
       'toast.expSaved': 'Expense saved', 'toast.expUpdated': 'Expense updated', 'toast.deleted': 'Deleted',
       'toast.fcAdded': 'Fixed cost added', 'toast.fcUpdated': 'Fixed cost updated',
       'toast.activated': 'Activated', 'toast.deactivated': 'Deactivated',
       'toast.csv': 'CSV exported', 'toast.fixedSummary': 'Fixed costs summary exported',
-      'toast.backupExported': 'Backup exported', 'toast.backupLoaded': 'Backup loaded — please unlock',
+      'toast.backupExported': 'Backup exported',
       'toast.passChanged': 'Password changed', 'toast.vaultCreated': 'Vault created', 'toast.autolocked': 'Auto-locked',
       'toast.reqFields': 'Name and amount are required', 'toast.passMismatch': 'Passwords do not match',
-      'toast.noVault': 'No vault present',
+      'toast.noVault': 'No vault present', 'toast.settingsSaved': 'Setting saved',
+      'toast.catAdded': 'Category added', 'toast.catRenamed': 'Category renamed', 'toast.catDeleted': 'Category deleted',
       'confirm.delExpense': 'Delete expense?', 'confirm.delFixed': 'Permanently delete fixed cost entry?',
-      'confirm.restore': 'Replace current data with the backup? Then unlock with the backup\'s password.',
+      'confirm.delCat': 'Delete category "{name}"? Its entries move to "{fb}".',
+      'restore.title': 'Restore backup', 'restore.passLabel': 'Password of the backup', 'restore.btn': 'Restore',
+      'restore.hint': 'The current data on this device will be replaced by the backup. That only happens once the backup opens with its password — an unusable file cannot overwrite anything.',
+      'restore.file': 'File: {name}', 'toast.backupRestored': 'Backup restored',
+      'toast.catDeletedTo': 'Category deleted — entries now under "{target}"',
+      'err.tooLarge': 'File too large for device storage', 'err.unknown': 'Unexpected error',
       'err.prefix': 'Error: ', 'err.wrongPass': 'Wrong password', 'err.shortPass': 'Password must be at least 8 characters',
+      'err.locked': 'Vault locked', 'err.noVault': 'No vault present', 'err.corrupt': 'Vault corrupted',
+      'err.wrongCurrentPass': 'Current password is wrong', 'err.badBackup': 'Not a valid backup file',
+      'err.required': 'Required fields missing', 'err.catExists': 'Category already exists', 'err.notFound': 'Entry not found',
+      'err.badAmount': 'Invalid amount', 'err.badValue': 'Invalid value', 'err.route': 'Unknown action',
+      'err.lastCategory': 'The last category cannot be deleted', 'err.filesystem': 'Filesystem plugin missing',
       // Liabilities (v1.6)
       'nav.liab': 'Debts',
       'liab.open': 'Open', 'liab.openTotal': 'liabilities total', 'liab.count': 'Items',
@@ -135,6 +206,37 @@ window.I18N = (function () {
       'toast.liabAdded': 'Liability saved', 'toast.liabUpdated': 'Liability updated',
       'toast.liabDone': 'Settled', 'toast.liabReopened': 'Reopened', 'toast.liabBooked': 'Expense booked and settled',
       'confirm.delLiab': 'Permanently delete liability?',
+      // Settings (v1.7)
+      'set.secTitle': 'Security', 'set.autolock': 'Lock after inactivity',
+      'set.off': 'Off', 'set.al1': '1 minute', 'set.al5': '5 minutes', 'set.al15': '15 minutes', 'set.al30': '30 minutes',
+      'set.autolockNote': 'Also applies when the app has been in the background for longer. Locking removes all decrypted data from the screen.',
+      'set.lockNow': 'Lock now', 'set.passNote': 'Backups (.vault) you exported earlier keep their old password.',
+      'set.themeTitle': 'Appearance', 'set.themeDark': 'Black (Neon)', 'set.themeSoft': 'Soft (Navy)',
+      'set.catTitle': 'Categories', 'set.catPh': 'New category', 'set.catAdd': 'Add',
+      'set.catNote': 'Renaming updates existing entries. Deleting moves its entries to the fallback category ("Other").',
+      'set.catRename': 'Rename', 'set.catDelete': 'Delete', 'set.catOk': 'OK', 'set.catCancel': 'Cancel', 'set.catCount': '{n} entries', 'set.catCount1': '1 entry',
+      'set.aboutTitle': 'About',
+      'set.aboutText': 'Offline expense tracker by Alien Investor. All data lives as one encrypted vault on this device only — no cloud, no account, no telemetry, no internet permission.',
+      'about': 'Expense Tracker v{v} · AES-256-GCM · PBKDF2-SHA256 (600k) · 100 % local',
+      'foot.line1': 'Alien Investor · Expense Tracker · 100 % local · no cloud · no telemetry',
+      'foot.line2': 'Encryption: AES-256-GCM · PBKDF2-SHA256 (600k) · WebCrypto',
+      // Manual
+      'help.btn': 'Manual', 'help.title': 'Manual', 'help.closeX': 'Close ✕',
+      'help.h1': 'What is the Expense Tracker?',
+      'help.p1': 'A <strong>local, encrypted expense tracker</strong>. It runs completely <strong>offline</strong> — no cloud, no server, no telemetry, no account. The Android app does not even have an internet permission. Your expenses never leave the device.',
+      'help.warn': '⚠ There is no reset and no backdoor. If you forget your master password, the data is gone for good. Make regular backups (tab "Export").',
+      'help.h2': 'Getting started',
+      'help.l2': '<li>Choose a <strong>master password</strong> — at least 8 characters, better a long passphrase. It derives the key that encrypts all data.</li><li>Log expenses with the <strong>+</strong> button: name, amount, date, category, optional note.</li><li>The <strong>Overview</strong> shows per month the total load, fixed costs, variable expenses, the comparison with the previous month and the split by category. The search field and category chips filter the list.</li>',
+      'help.h3': 'Fixed costs',
+      'help.l3': '<li>Enter once, they flow into every month automatically. <strong>Yearly</strong> amounts are divided by 12 for the monthly view.</li><li><strong>Since</strong> date and <strong>pause</strong>: the tracker calculates historically correct — a cancelled subscription stays in earlier months and disappears from the month of cancellation.</li><li><strong>Tax usage</strong> (private / business / partial) ends up in the fixed costs summary for your accountant.</li>',
+      'help.h4': 'Debts',
+      'help.l4': '<li>Note open payments with amount, due date and note. Overdue items appear red, items due within seven days orange.</li><li><strong>Settle + book as expense</strong> opens the expense form pre-filled; after saving, the item is settled and the payment appears in the monthly overview. Plain settling books no expense.</li>',
+      'help.h5': 'Export',
+      'help.l5': '<li><strong>Download CSV</strong>: variable expenses plus monthly amortized fixed costs for a year or a month — for Excel, LibreOffice Calc and Google Sheets.</li><li><strong>Fixed costs summary</strong>: each item exactly once with monthly and yearly amount, sorted by size — for cleaning up and for taxes.</li>',
+      'help.h6': 'Backup',
+      'help.l6': '<li><strong>Encrypted backup (.vault)</strong>: the whole vault as one file, protected by your master password. The only way to move data to another device.</li><li><strong>Restore</strong> replaces the data on the device — but only after the backup has opened with its password. Also available from the lock screen.</li><li>Rule of thumb: after every larger entry session, export a backup and keep it off the phone.</li>',
+      'help.h7': 'Security',
+      'help.l7': '<li>Encryption with <strong>AES-256-GCM</strong>, key derivation <strong>PBKDF2-SHA256</strong> with 600,000 rounds (system WebCrypto).</li><li><strong>Auto-lock</strong>: after the idle time chosen in Settings, or after a longer time in the background, the app locks and removes all data from the screen.</li><li>The Android app requests <strong>no permission at all</strong>, blocks screenshots and screen recording and is excluded from system backups.</li><li>The source code is public (Codeberg); the APK signature can be verified with AppVerifier against the published fingerprint.</li>',
     },
   };
 
@@ -143,16 +245,19 @@ window.I18N = (function () {
     if (vars) for (const k in vars) s = s.split('{' + k + '}').join(vars[k]);
     return s;
   }
-  function setLang(l) { lang = l; localStorage.setItem(LS, l); document.documentElement.lang = l; }
+  function has(key) { return !!(UI[lang] && UI[lang][key] != null) || UI.de[key] != null; }
+  function setLang(l) { lang = l; try { localStorage.setItem(LS, l); } catch (_) {} document.documentElement.lang = l; }
   function locale() { return lang === 'en' ? 'en-US' : 'de-DE'; }
   function monthName(idx, short) { return new Date(2000, idx, 1).toLocaleString(locale(), { month: short ? 'short' : 'long' }); }
 
+  // data-i18n setzt textContent (kein HTML); data-i18n-html nur für Wörterbuch-Texte mit Markup.
   function applyStatic(root) {
     root = root || document;
-    root.querySelectorAll('[data-i18n]').forEach(el => { el.innerHTML = t(el.getAttribute('data-i18n')); });
+    root.querySelectorAll('[data-i18n]').forEach(el => { el.textContent = t(el.getAttribute('data-i18n')); });
+    root.querySelectorAll('[data-i18n-html]').forEach(el => { el.innerHTML = t(el.getAttribute('data-i18n-html')); });
     root.querySelectorAll('[data-i18n-ph]').forEach(el => { el.setAttribute('placeholder', t(el.getAttribute('data-i18n-ph'))); });
     root.querySelectorAll('[data-i18n-title]').forEach(el => { el.setAttribute('title', t(el.getAttribute('data-i18n-title'))); });
   }
 
-  return { t, setLang, applyStatic, locale, monthName, get lang() { return lang; } };
+  return { t, has, setLang, applyStatic, locale, monthName, get lang() { return lang; } };
 })();

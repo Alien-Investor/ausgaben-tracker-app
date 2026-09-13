@@ -3,17 +3,36 @@
 //   1) AndroidManifest: allowBackup=false (keine ADB-/Cloud-Backups der Vault-Daten)
 //   2) AndroidManifest: INTERNET-Permission ENTFERNEN (App kann nachweisbar nicht funken)
 //   3) MainActivity: FLAG_SECURE (kein Screenshot/Recording, keine Recents-Vorschau)
+// Die Prüfung am Ende läuft UNBEDINGT (Audit run-1 #13: vorher meldete das Skript Erfolg, sobald irgendetwas
+// ersetzt wurde — eine INTERNET-Zeile in anderer Schreibweise blieb dann stehen). Aufruf mit --check <manifest>
+// prüft nur (für den zusammengeführten Manifest nach dem Gradle-Build, siehe build-apk.sh).
 import { readFileSync, writeFileSync } from 'node:fs';
+
+const INTERNET_RE = /<uses-permission\b[^>]*android\.permission\.INTERNET[^>]*(\/>|>\s*<\/uses-permission>)/g;
+function assertHardened(m, label) {
+  const problems = [];
+  if (!/android:allowBackup="false"/.test(m)) problems.push('allowBackup ist nicht "false"');
+  if (/android\.permission\.INTERNET/.test(m)) problems.push('INTERNET-Permission vorhanden');
+  if (problems.length) {
+    console.error(`FEHLER: Manifest-Härtung unvollständig (${label}): ${problems.join(', ')} — Build abgebrochen!`);
+    process.exit(1);
+  }
+  console.log(`Manifest geprüft (${label}): allowBackup=false, keine INTERNET-Permission.`);
+}
+
+if (process.argv[2] === '--check') {
+  assertHardened(readFileSync(process.argv[3], 'utf8'), process.argv[3]);
+  process.exit(0);
+}
 
 const MANIFEST = 'android/app/src/main/AndroidManifest.xml';
 let m = readFileSync(MANIFEST, 'utf8');
 const before = m;
 m = m.replace(/android:allowBackup="true"/g, 'android:allowBackup="false"');
-m = m.replace(/^\s*<uses-permission android:name="android\.permission\.INTERNET"\s*\/>\s*$/gm, '');
+m = m.replace(INTERNET_RE, '');
 if (m !== before) { writeFileSync(MANIFEST, m); console.log('Manifest gehärtet (allowBackup=false, INTERNET entfernt).'); }
-else if (!m.includes('allowBackup="false"') || m.includes('android.permission.INTERNET')) {
-  console.error('FEHLER: Manifest-Härtung griff nicht — Manifest prüfen!'); process.exit(1);
-} else console.log('Manifest bereits gehärtet.');
+else console.log('Manifest bereits gehärtet.');
+assertHardened(m, MANIFEST);
 
 const MAIN = 'android/app/src/main/java/org/alieninvestor/ausgaben/MainActivity.java';
 let j = readFileSync(MAIN, 'utf8');

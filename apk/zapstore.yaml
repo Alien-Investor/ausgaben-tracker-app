@@ -23,9 +23,14 @@ description: |
     tick them off, overdue items highlighted — optionally book a settled item as an expense
   - Encrypted vault: master password, AES-256-GCM, key via PBKDF2-SHA256 (600k iterations),
     auto-lock after inactivity
-  - Encrypted .vault backup: export and import to move between devices
-  - German and English interface, switchable in-app
-  - Dark neon UI, fully mobile-first
+  - Encrypted .vault backup: export and import to move between devices — the import asks
+    for the backup's password and only replaces existing data once the backup opens (v1.7)
+  - Settings tab (v1.7): auto-lock 0/1/5/15/30 min, lock now, change master password,
+    black (neon) or soft (navy) theme, manage your own categories, version display
+  - Overview by category with search and category filter (v1.7)
+  - Built-in manual; German and English, follows the system language on first start,
+    switchable in-app
+  - Alien-Investor family design (Orbitron / Share Tech Mono, bundled locally), mobile-first
 
   Works completely offline — built entirely on native WebCrypto, no external dependencies.
 
@@ -41,5 +46,6 @@ images:
   - ./screenshots/2-fixed.png
   - ./screenshots/3-export.png
   - ./screenshots/4-debts.png
+  - ./screenshots/5-settings.png
 
 release_notes: ../CHANGELOG.md
