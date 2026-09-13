@@ -2,6 +2,20 @@
 
 Format: `## vX.Y — YYYY-MM-DD`. Offline-App (Capacitor), Web + APK aus einer Codebasis.
 
+## v1.7.2 — 2026-09-14
+
+Wartungsrelease, Querfund aus dem Review des Sachwert-Tresors (v2.9.1). Keine neuen Funktionen, keine Änderung
+am Datenformat; Backups aus v1.7.x laden unverändert.
+
+- **Passwort ändern:** Während der Schlüsselableitung (knapp eine Sekunde) konnte ein gleichzeitiges Speichern,
+  etwa eine geänderte Einstellung, den Tresor mit dem alten Schlüssel, aber schon dem neuen Salt ablegen. Brach
+  der Wechsel danach ab (Sperren, App beendet, Speicherfehler), öffnete **kein Passwort** den Tresor mehr, nur ein
+  Backup half. Jetzt wird der neue Schlüssel erst vollständig abgeleitet und dann in einem Schritt übernommen.
+  Ein überholtes Speichern schreibt mit dem neuen Schlüssel nach, statt „Tresor gesperrt“ zu melden.
+- Scheitert das Speichern beim Passwortwechsel, gilt im laufenden Betrieb wieder das bisherige Passwort, passend
+  zum gespeicherten Tresor. Wird während des Wechsels gesperrt, bleibt der neue Schlüssel verworfen.
+- Neue Prüfsuite `verify-v172.mjs` (überholtes Speichern, Speichern + Sperren während der Ableitung, Speicherfehler).
+
 ## v1.7.1 — 2026-09-13
 
 Wartungsrelease, Nachbesserung zu Audit-Fund 6 aus run-1. Keine neuen Funktionen, keine Änderung am

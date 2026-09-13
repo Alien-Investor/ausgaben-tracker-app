@@ -82,11 +82,13 @@
   // Fehlermeldungen sind i18n-Schlüssel (err.*) — app.js übersetzt sie über tErr().
   // Schlüsselgeneration VOR dem await pinnen und danach prüfen: ein lock()/Restore während des
   // Verschlüsselns darf nie einen Blob mit leerem Salt schreiben (Audit run-1 #12, latent).
+  // Hat ein Passwortwechsel KEY/SALT währenddessen getauscht (VAULT gleich), mit dem neuen Paar neu speichern.
   async function persist() {
     const key = KEY, vault = VAULT, salt = SALT;
     if (!key || !vault || !salt) throw new Error('err.locked');
     const blob = await C.encryptObj(vault, key);
-    if (KEY !== key || SALT !== salt || VAULT !== vault) throw new Error('err.locked');
+    if (!KEY || VAULT !== vault) throw new Error('err.locked');
+    if (KEY !== key || SALT !== salt) return persist();
     blob.magic = MAGIC; blob.kdf = 'PBKDF2-SHA256'; blob.iter = C.ITER; blob.salt = C.bufToB64(salt);
     localStorage.setItem(LS_KEY, JSON.stringify(blob));
   }
@@ -96,8 +98,9 @@
 
   async function setup(password) {
     if (!password || password.length < 8) throw new Error('err.shortPass');
-    SALT = crypto.getRandomValues(new Uint8Array(16));
-    KEY = await C.deriveKey(password, SALT);
+    const s = crypto.getRandomValues(new Uint8Array(16));
+    const k = await C.deriveKey(password, s);
+    SALT = s; KEY = k;
     VAULT = emptyVault(currentLang());
     await persist();
   }
@@ -196,9 +199,20 @@
     const k = await C.deriveKey(oldPw, salt);
     try { await C.decryptBlob(blob, k); } catch (e) { throw new Error('err.wrongCurrentPass'); }
     if (!newPw || newPw.length < 8) throw new Error('err.shortPass');
-    SALT = crypto.getRandomValues(new Uint8Array(16));
-    KEY = await C.deriveKey(newPw, SALT);
-    await persist();
+    // Neuen Schlüssel erst LOKAL ableiten, dann SALT/KEY in einem synchronen Schritt tauschen: ein persist()
+    // während PBKDF2 schriebe sonst alten KEY + neuen SALT — ein Blob, den kein Passwort mehr öffnet
+    // (Rück-Querfund aus dem Sachwert-Tresor-Review v2.9.1).
+    const vault = VAULT, oldSalt = SALT, oldKey = KEY;
+    const s = crypto.getRandomValues(new Uint8Array(16));
+    const nk = await C.deriveKey(newPw, s);
+    if (!KEY || VAULT !== vault) throw new Error('err.locked');   // währenddessen gesperrt: neuen Schlüssel nicht in den RAM holen
+    SALT = s; KEY = nk;
+    try { await persist(); }
+    catch (e) {
+      // Speicher hält weiter den Blob mit dem alten Passwort — RAM passend zurück (beim Sperren ist er ohnehin leer)
+      if (e.message !== 'err.locked') { SALT = oldSalt; KEY = oldKey; }
+      throw e;
+    }
   }
 
   // ── Backup / Restore (.vault-Datei = der verschlüsselte Blob selbst) ────────

@@ -1,7 +1,7 @@
 'use strict';
 // app.js — UI-Logik des Ausgaben-Trackers. Klassisches Skript (keine Module): die Funktionen sind
 // global, damit die E2E-Suiten (verify-*.mjs) sie direkt aufrufen können.
-const APP_VERSION = '1.7.1';   // Anzeige in den Einstellungen; muss VERSION_NAME in apk/VERSION entsprechen (build-www.sh setzt es aus VERSION, check-version.mjs prüft es)
+const APP_VERSION = '1.7.2';   // Anzeige in den Einstellungen; muss VERSION_NAME in apk/VERSION entsprechen (build-www.sh setzt es aus VERSION, check-version.mjs prüft es)
 
 const monthName = (i) => I18N.monthName(i);        // lokalisierter Monatsname (Januar / January)
 const monthShort = (i) => I18N.monthName(i, true); // kurz (Jan)
