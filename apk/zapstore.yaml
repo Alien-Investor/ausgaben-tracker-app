@@ -34,6 +34,10 @@ description: |
 
   Works completely offline — built entirely on native WebCrypto, no external dependencies.
 
+  Signing certificate SHA-256 (verify with AppVerifier), identical for every version:
+  DB:C5:08:71:53:B4:59:21:82:DD:13:1A:73:0C:11:A0:F7:12:4E:34:42:6C:54:2B:4B:A6:88:5A:B1:CC:01:0E
+  apksigner (no separators): dbc5087153b4592182dd131a730c11a0f7124e34426c542b4ba6885ab1cc010e
+
 tags:
   - finance
   - tools
