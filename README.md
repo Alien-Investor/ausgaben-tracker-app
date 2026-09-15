@@ -27,7 +27,8 @@ No account, no server, no tracking — all data stays **encrypted on your device
 - **Übersicht nach Kategorie** mit Suche und Kategorie-Filter (seit v1.7)
 - Eingebautes Handbuch (?-Knopf), Deutsch & Englisch — folgt beim ersten Start der Systemsprache,
   in der App umschaltbar
-- Familien-Design der Alien-Investor-Apps (Orbitron / Share Tech Mono, lokal gebündelt), Mobile-first
+- Familien-Design der Alien-Investor-Apps (Orbitron / Share Tech Mono, lokal gebündelt), Mobile-first —
+  Auswahlfelder und Such-X im App-Design statt grauer Systemlisten (seit v1.8)
 
 Die App ist eine offline-only Web-App (HTML/JS, WebCrypto) in einem Capacitor-Wrapper —
 keine externen Dependencies, keine Netzwerk-Calls.

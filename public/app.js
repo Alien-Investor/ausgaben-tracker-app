@@ -1,7 +1,7 @@
 'use strict';
 // app.js — UI-Logik des Ausgaben-Trackers. Klassisches Skript (keine Module): die Funktionen sind
 // global, damit die E2E-Suiten (verify-*.mjs) sie direkt aufrufen können.
-const APP_VERSION = '1.7.2';   // Anzeige in den Einstellungen; muss VERSION_NAME in apk/VERSION entsprechen (build-www.sh setzt es aus VERSION, check-version.mjs prüft es)
+const APP_VERSION = '1.8';   // Anzeige in den Einstellungen; muss VERSION_NAME in apk/VERSION entsprechen (build-www.sh setzt es aus VERSION, check-version.mjs prüft es)
 
 const monthName = (i) => I18N.monthName(i);        // lokalisierter Monatsname (Januar / January)
 const monthShort = (i) => I18N.monthName(i, true); // kurz (Jan)
@@ -47,6 +47,7 @@ function selectValue(sel, value) {
     const o = document.createElement('option'); o.value = value; o.textContent = value; sel.appendChild(o);
   }
   sel.value = value;
+  syncCombo(sel.id);
 }
 // Text- UND attributsicher (auch " und ' werden ersetzt) — gilt für alles, was in
 // Template-Strings landet, inkl. data-id-Attribute der Aktionsbuttons.
@@ -55,6 +56,53 @@ function escapeHtml(str) { return String(str).replace(/[&<>"']/g, c => ESC[c]); 
 const $ = (id) => document.getElementById(id);
 // Suche: Groß-/Kleinschreibung und Akzente ignorieren (ä = a, é = e)
 function norm(s) { return String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, ''); }
+
+// --- Eigene Auswahlfelder (wie Alien Pass v1.5) ---
+// Die aufgeklappte System-Liste eines <select> ist grau und nicht gestaltbar. Das native <select> bleibt deshalb
+// unsichtbar als Wertspeicher (.combo-native): $('exp-category').value, selectValue() und die data-change-Delegation
+// gelten unverändert. Darüber liegen Knopf #cb-<id> und Menü #cm-<id>. Kategorienamen sind entschlüsselte Nutzerdaten →
+// Menüeinträge nur per textContent/dataset, und closeMenus() versteckt UND leert jedes Menü (auch beim Sperren).
+function closeMenus() {
+  document.querySelectorAll('.combo-menu').forEach(m => { m.classList.add('hidden'); m.replaceChildren(); });
+  document.body.classList.remove('menu-open');
+}
+function syncCombo(id) {
+  const sel = $(id), lab = $('cb-' + id);
+  if (!sel || !lab) return;
+  const o = sel.options[sel.selectedIndex];
+  lab.textContent = o ? o.textContent : '';
+}
+function syncCombos() { document.querySelectorAll('.combo-native').forEach(sel => syncCombo(sel.id)); }
+function toggleCombo(id) {
+  const menu = $('cm-' + id), sel = $(id);
+  if (!menu || !sel) return;
+  const wasOpen = !menu.classList.contains('hidden');
+  closeMenus();
+  if (wasOpen || !sel.options.length) return;
+  for (const o of sel.options) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'combo-opt' + (o.value === sel.value ? ' on' : '');
+    b.textContent = o.textContent;
+    b.dataset.action = 'chooseOpt'; b.dataset.arg = o.value; b.dataset.sel = id;
+    menu.appendChild(b);
+  }
+  menu.classList.remove('hidden');
+  document.body.classList.add('menu-open');   // blendet den schwebenden Plus-Knopf aus, der sonst über dem Menü liegt
+  menu.scrollIntoView({ block: 'nearest' });   // im Bottom-Sheet ragt das Menü sonst unter den sichtbaren Bereich
+  const on = menu.querySelector('.combo-opt.on');
+  if (on) on.scrollIntoView({ block: 'nearest' });
+}
+function chooseOpt(value, el) {
+  const id = el && el.dataset.sel, sel = id ? $(id) : null;
+  closeMenus();
+  if (!sel || sel.tagName !== 'SELECT' || ![...sel.options].some(o => o.value === value)) return;
+  const changed = sel.value !== value;
+  sel.value = value;
+  syncCombo(id);
+  const lab = $('cb-' + id); if (lab) lab.parentElement.focus();
+  if (changed) sel.dispatchEvent(new Event('change', { bubbles: true }));   // wie nativ: nur bei echter Änderung
+}
 
 // apiFetch (gleiche Signatur) wird von local-api.js als window.apiFetch bereitgestellt.
 
@@ -80,6 +128,7 @@ function populateCategorySelects() {
   let yearOpts = '';
   for (let y = curYear; y >= curYear - 5; y--) yearOpts += `<option value="${y}">${y}</option>`;
   $('export-year').innerHTML = yearOpts;
+  ['exp-category', 'fc-category', 'export-year'].forEach(syncCombo);
   populateExportMonths();
 }
 
@@ -91,6 +140,7 @@ function populateExportMonths() {
   for (let m = 1; m <= 12; m++) html += `<option value="${m}">${escapeHtml(monthName(m - 1))}</option>`;
   sel.innerHTML = html;
   sel.value = prev;
+  syncCombo('export-month');
 }
 
 // --- Tab switching ---
@@ -454,6 +504,7 @@ function openModal(id, focusId) {
 function closeModal(id) {
   const m = $(id);
   if (!m.classList.contains('open')) return;
+  closeMenus();
   m.classList.remove('open');
   if (lastFocus && document.body.contains(lastFocus) && typeof lastFocus.focus === 'function') lastFocus.focus();
   lastFocus = null;
@@ -558,7 +609,7 @@ function openFixedModal(id) {
   $('fc-amount').value = '';
   $('fc-since').value = todayISO();
   $('fc-note').value = '';
-  $('fc-usage').value = 'privat';
+  $('fc-usage').value = 'privat'; syncCombo('fc-usage');
   $('fc-active-group').style.display = isEdit ? 'block' : 'none';
   $('fc-active').checked = true;
   selectPeriod('monthly');
@@ -575,7 +626,7 @@ async function loadFixedForEdit(id) {
     $('fc-amount').value = fc.amount;
     $('fc-since').value = fc.since || '';   // leer = „gilt für alle Monate" — bleibt beim Speichern leer
     $('fc-note').value = fc.note || '';
-    $('fc-usage').value = fc.usage || 'privat';
+    $('fc-usage').value = fc.usage || 'privat'; syncCombo('fc-usage');
     $('fc-active').checked = fc.active;
     selectPeriod(fc.period || 'monthly');
     selectValue($('fc-category'), fc.category);
@@ -918,7 +969,7 @@ $('restore-pass').addEventListener('keydown', e => { if (e.key === 'Enter') save
 
 // --- EINSTELLUNGEN ---
 function renderSettings() {
-  $('set-autolock').value = String(settings.autolock);
+  $('set-autolock').value = String(settings.autolock); syncCombo('set-autolock');
   updateThemeSeg();
   $('about-line').textContent = I18N.t('about', { v: APP_VERSION });
   renderCategoryList();
@@ -1147,6 +1198,7 @@ function clearRendered() {
   $('help-overlay').classList.add('hidden');
   $('liab-open-total').classList.remove('warn');
   $('set-autolock').value = '5';
+  closeMenus(); syncCombos();   // Menüs tragen Kategorienamen; Knopfbeschriftungen den geleerten Selects anpassen
   pendingLiabId = null; editingLiabId = null; editingExpenseId = null; editingFixedId = null;
   dashData = null; searchQ = ''; catFilter = new Set(); catCounts = new Map();
   categories = []; settings = { autolock: 5 };
@@ -1215,6 +1267,7 @@ function rerenderCurrentView() {
 function toggleLang() {
   I18N.setLang(I18N.lang === 'de' ? 'en' : 'de');
   I18N.applyStatic();
+  closeMenus(); syncCombos();   // Optionen mit data-i18n (Auto-Lock, Nutzung) haben neue Texte
   updateLangToggle();
   if (!document.body.classList.contains('locked')) rerenderCurrentView();
 }
@@ -1271,16 +1324,18 @@ const ACTIONS = {
   catCancel: () => renderCategoryList(), catDelete: (id) => catDelete(id),
   chip: (_, arg) => setChip(arg), chipAll: () => setChip(null),
   openHelp: () => openHelp(), closeHelp: () => closeHelp(),
+  toggleCombo: (_, arg) => toggleCombo(arg), chooseOpt: (_, arg, el) => chooseOpt(arg, el),
 };
 const CHANGES = {
   setAutolock: (el) => setAutolock(el.value),
 };
 document.addEventListener('click', e => {
+  if (!e.target.closest('.combo')) closeMenus();   // Klick außerhalb eines Auswahlfelds schließt jedes offene Menü
   const el = e.target.closest('[data-action]');
   if (!el) return;
   if (el.dataset.overlay && e.target !== el) return;   // Klick im Modal-Inhalt, nicht auf den Hintergrund
   const fn = ACTIONS[el.dataset.action];
-  if (fn) fn(el.dataset.id || undefined, el.dataset.arg);
+  if (fn) fn(el.dataset.id || undefined, el.dataset.arg, el);
 });
 document.addEventListener('change', e => {
   const el = e.target.closest('[data-change]');
@@ -1288,9 +1343,10 @@ document.addEventListener('change', e => {
   const fn = CHANGES[el.dataset.change];
   if (fn) fn(el);
 });
-// ESC: Handbuch, sonst offenes Modal schließen
+// ESC: offenes Auswahlmenü, sonst Handbuch, sonst offenes Modal schließen
 document.addEventListener('keydown', e => {
   if (e.key !== 'Escape') return;
+  if (document.querySelector('.combo-menu:not(.hidden)')) { closeMenus(); return; }
   if (!$('help-overlay').classList.contains('hidden')) { closeHelp(); return; }
   if ($('modal-expense').classList.contains('open')) closeExpenseModal();
   else if ($('modal-fixed').classList.contains('open')) closeFixedModal();
@@ -1303,6 +1359,7 @@ document.querySelectorAll('form.auth-form').forEach(f => f.addEventListener('sub
 // --- START ---
 document.documentElement.lang = I18N.lang;
 I18N.applyStatic();
+syncCombos();
 updateLangToggle();
 enhancePasswordFields();
 updateThemeSeg();

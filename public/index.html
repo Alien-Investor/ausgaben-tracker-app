@@ -143,12 +143,20 @@
           <h2 data-i18n="export.csvTitle">CSV-Export</h2>
           <div class="form-row">
             <div class="form-group">
-              <label for="export-year" data-i18n="export.year">Jahr</label>
-              <select id="export-year"></select>
+              <label id="lb-export-year" data-i18n="export.year">Jahr</label>
+              <div class="combo">
+                <button type="button" class="combo-btn" data-action="toggleCombo" data-arg="export-year" aria-haspopup="true" aria-labelledby="lb-export-year cb-export-year"><span id="cb-export-year"></span><span class="caret">▾</span></button>
+                <select class="combo-native" id="export-year"></select>
+                <div id="cm-export-year" class="combo-menu hidden"></div>
+              </div>
             </div>
             <div class="form-group">
-              <label for="export-month" data-i18n="export.monthOpt">Monat (optional)</label>
-              <select id="export-month"></select>
+              <label id="lb-export-month" data-i18n="export.monthOpt">Monat (optional)</label>
+              <div class="combo">
+                <button type="button" class="combo-btn" data-action="toggleCombo" data-arg="export-month" aria-haspopup="true" aria-labelledby="lb-export-month cb-export-month"><span id="cb-export-month"></span><span class="caret">▾</span></button>
+                <select class="combo-native" id="export-month"></select>
+                <div id="cm-export-month" class="combo-menu hidden"></div>
+              </div>
             </div>
           </div>
           <div class="backup-actions">
@@ -171,14 +179,18 @@
       <div id="tab-settings" class="tab-content">
         <div class="card">
           <h2 data-i18n="set.secTitle">Sicherheit</h2>
-          <label for="set-autolock" data-i18n="set.autolock">Sperren nach Inaktivität</label>
-          <select id="set-autolock" data-change="setAutolock">
-            <option value="0" data-i18n="set.off">Aus</option>
-            <option value="1" data-i18n="set.al1">1 Minute</option>
-            <option value="5" data-i18n="set.al5">5 Minuten</option>
-            <option value="15" data-i18n="set.al15">15 Minuten</option>
-            <option value="30" data-i18n="set.al30">30 Minuten</option>
-          </select>
+          <label id="lb-set-autolock" data-i18n="set.autolock">Sperren nach Inaktivität</label>
+          <div class="combo">
+            <button type="button" class="combo-btn" data-action="toggleCombo" data-arg="set-autolock" aria-haspopup="true" aria-labelledby="lb-set-autolock cb-set-autolock"><span id="cb-set-autolock"></span><span class="caret">▾</span></button>
+            <select class="combo-native" id="set-autolock" data-change="setAutolock">
+              <option value="0" data-i18n="set.off">Aus</option>
+              <option value="1" data-i18n="set.al1">1 Minute</option>
+              <option value="5" data-i18n="set.al5" selected>5 Minuten</option>
+              <option value="15" data-i18n="set.al15">15 Minuten</option>
+              <option value="30" data-i18n="set.al30">30 Minuten</option>
+            </select>
+            <div id="cm-set-autolock" class="combo-menu hidden"></div>
+          </div>
           <p class="muted" style="margin-top:8px" data-i18n="set.autolockNote">Gilt auch, wenn die App länger im Hintergrund war. Beim Sperren werden alle entschlüsselten Daten aus der Anzeige entfernt.</p>
           <button class="btn" style="margin-top:12px" data-action="lock"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg> <span data-i18n="set.lockNow">Jetzt sperren</span></button>
         </div>
@@ -250,8 +262,12 @@
         </div>
       </div>
       <div class="form-group">
-        <label for="exp-category" data-i18n="modal.category">Kategorie</label>
-        <select id="exp-category"></select>
+        <label id="lb-exp-category" data-i18n="modal.category">Kategorie</label>
+        <div class="combo">
+          <button type="button" class="combo-btn" data-action="toggleCombo" data-arg="exp-category" aria-haspopup="true" aria-labelledby="lb-exp-category cb-exp-category"><span id="cb-exp-category"></span><span class="caret">▾</span></button>
+          <select class="combo-native" id="exp-category"></select>
+          <div id="cm-exp-category" class="combo-menu hidden"></div>
+        </div>
       </div>
       <div class="form-group">
         <label for="exp-note" data-i18n="modal.note">Notiz (optional)</label>
@@ -290,16 +306,24 @@
         </div>
       </div>
       <div class="form-group">
-        <label for="fc-category" data-i18n="modal.category">Kategorie</label>
-        <select id="fc-category"></select>
+        <label id="lb-fc-category" data-i18n="modal.category">Kategorie</label>
+        <div class="combo">
+          <button type="button" class="combo-btn" data-action="toggleCombo" data-arg="fc-category" aria-haspopup="true" aria-labelledby="lb-fc-category cb-fc-category"><span id="cb-fc-category"></span><span class="caret">▾</span></button>
+          <select class="combo-native" id="fc-category"></select>
+          <div id="cm-fc-category" class="combo-menu hidden"></div>
+        </div>
       </div>
       <div class="form-group">
-        <label for="fc-usage" data-i18n="modal.usage">Steuerliche Nutzung</label>
-        <select id="fc-usage">
-          <option value="privat" data-i18n="modal.usagePrivat">Privat</option>
-          <option value="betrieblich" data-i18n="modal.usageBetrieblich">Betrieblich (voll absetzbar)</option>
-          <option value="anteilig" data-i18n="modal.usageAnteilig">Anteilig (gemischt)</option>
-        </select>
+        <label id="lb-fc-usage" data-i18n="modal.usage">Steuerliche Nutzung</label>
+        <div class="combo">
+          <button type="button" class="combo-btn" data-action="toggleCombo" data-arg="fc-usage" aria-haspopup="true" aria-labelledby="lb-fc-usage cb-fc-usage"><span id="cb-fc-usage"></span><span class="caret">▾</span></button>
+          <select class="combo-native" id="fc-usage">
+            <option value="privat" data-i18n="modal.usagePrivat">Privat</option>
+            <option value="betrieblich" data-i18n="modal.usageBetrieblich">Betrieblich (voll absetzbar)</option>
+            <option value="anteilig" data-i18n="modal.usageAnteilig">Anteilig (gemischt)</option>
+          </select>
+          <div id="cm-fc-usage" class="combo-menu hidden"></div>
+        </div>
       </div>
       <div class="form-group">
         <label for="fc-note" data-i18n="modal.note">Notiz (optional)</label>

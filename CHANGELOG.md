@@ -2,6 +2,19 @@
 
 Format: `## vX.Y — YYYY-MM-DD`. Offline-App (Capacitor), Web + APK aus einer Codebasis.
 
+## v1.8 — 2026-09-16
+
+Oberflächen-Update nach dem Vorbild von Alien Pass v1.5. Keine neuen Funktionen, keine Änderung am Datenformat;
+Backups aus v1.7.x laden unverändert.
+
+- **Auswahlfelder im App-Design:** Kategorie, steuerliche Nutzung, Auto-Lock sowie Jahr und Monat im Export klappen
+  nicht mehr als graue Systemliste auf, sondern als Menü in den Farben der App (folgt dem Theme Schwarz oder Soft).
+  Die aktuelle Wahl ist markiert. Tippen daneben oder ESC schließt nur das Menü, ein offenes Formular bleibt offen.
+- **Such-X:** Das Löschen-Kreuz im Suchfeld der Übersicht ist jetzt neon statt blau.
+- Datumsfelder öffnen weiter den Datumsdialog des Systems (Bedienung und Datumsformat des Geräts).
+- Beim Sperren werden offene Menüs geschlossen und geleert, damit keine Kategorienamen in der Anzeige bleiben.
+- Neue Prüfsuite `verify-v18.mjs` (Aufbau, Wählen, Sprachwechsel, ESC/Außenklick, böse Kategorienamen, Sperren).
+
 ## v1.7.2 — 2026-09-14
 
 Wartungsrelease, Querfund aus dem Review des Sachwert-Tresors (v2.9.1). Keine neuen Funktionen, keine Änderung
