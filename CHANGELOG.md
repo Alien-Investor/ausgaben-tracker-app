@@ -2,6 +2,14 @@
 
 Format: `## vX.Y — YYYY-MM-DD`. Offline-App (Capacitor), Web + APK aus einer Codebasis.
 
+## v1.8.1 — 2026-09-21
+
+Reine Darstellungskorrektur. Am Datenformat, an der Verschlüsselung und an deinen Daten ändert sich nichts.
+
+- **Passwortfeld bleibt dunkel, wenn ein Passwortmanager es ausfüllt.** Füllte ein Passwortmanager (z.B. Proton Pass)
+  das Master-Passwort per Autofill ein, legte das System ein helles Feld darüber. Das Feld behält jetzt Hintergrund und
+  Schriftfarbe der gewählten Darstellung.
+
 ## v1.8 — 2026-09-16
 
 Oberflächen-Update nach dem Vorbild von Alien Pass v1.5. Keine neuen Funktionen, keine Änderung am Datenformat;
