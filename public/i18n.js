@@ -96,6 +96,9 @@ window.I18N = (function () {
       'toast.liabAdded': 'Verbindlichkeit gespeichert', 'toast.liabUpdated': 'Verbindlichkeit aktualisiert',
       'toast.liabDone': 'Abgehakt', 'toast.liabReopened': 'Wieder geöffnet', 'toast.liabBooked': 'Ausgabe gebucht und abgehakt',
       'confirm.delLiab': 'Verbindlichkeit dauerhaft löschen?',
+      // Rückfrage-Dialog + Toast mit Knopf (v1.9)
+      'dlg.ok': 'OK', 'dlg.cancel': 'Abbrechen', 'dlg.delete': 'Löschen', 'dlg.deleteForever': 'Endgültig löschen', 'dlg.deleteCat': 'Kategorie löschen',
+      'toast.undo': 'Rückgängig', 'toast.restored': 'Ausgabe wiederhergestellt', 'err.undoGone': 'Die Ausgabe ist bereits wieder da.',
       // Einstellungen (v1.7)
       'set.secTitle': 'Sicherheit', 'set.autolock': 'Sperren nach Inaktivität',
       'set.off': 'Aus', 'set.al1': '1 Minute', 'set.al5': '5 Minuten', 'set.al15': '15 Minuten', 'set.al30': '30 Minuten',
@@ -206,6 +209,9 @@ window.I18N = (function () {
       'toast.liabAdded': 'Liability saved', 'toast.liabUpdated': 'Liability updated',
       'toast.liabDone': 'Settled', 'toast.liabReopened': 'Reopened', 'toast.liabBooked': 'Expense booked and settled',
       'confirm.delLiab': 'Permanently delete liability?',
+      // Confirm dialog + toast with button (v1.9)
+      'dlg.ok': 'OK', 'dlg.cancel': 'Cancel', 'dlg.delete': 'Delete', 'dlg.deleteForever': 'Delete permanently', 'dlg.deleteCat': 'Delete category',
+      'toast.undo': 'Undo', 'toast.restored': 'Expense restored', 'err.undoGone': 'The expense is already back.',
       // Settings (v1.7)
       'set.secTitle': 'Security', 'set.autolock': 'Lock after inactivity',
       'set.off': 'Off', 'set.al1': '1 minute', 'set.al5': '5 minutes', 'set.al15': '15 minutes', 'set.al30': '30 minutes',

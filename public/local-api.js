@@ -543,6 +543,21 @@
         list.sort(byDateDesc);
         return list;
       }
+      // „Rückgängig“ nach dem Löschen (v1.9): Eintrag an seine alte Stelle zurück, Felder wie beim Import gesäubert (kein Vertrauen in den Aufrufer),
+      // ID bleibt (Sanitizer-Zeichenmenge), ist er schon wieder da → err.undoGone.
+      if (method === 'POST' && id === 'restore') {
+        const src = body && body.entry && typeof body.entry === 'object' ? body.entry : null;
+        if (!src) err('err.badValue');
+        const eid = idStr(src.id);
+        if (VAULT.expenses.some(e => e.id === eid)) err('err.undoGone');
+        // Name wie im Sanitizer (leer erlaubt — Altbestände/Backups können namenlose Einträge tragen, Review v1.9)
+        const entry = {
+          id: eid, name: str(src.name, 200).trim(), amount: routeAmount(src.amount),
+          category: str(src.category, 60).trim() || fallbackCategory(), date: dateOrNull(src.date) || todayISO(), note: str(src.note, 500)
+        };
+        const at = Math.min(Math.max(Math.trunc(num(body.index)), 0), VAULT.expenses.length);
+        VAULT.expenses.splice(at, 0, entry); await persist(); return entry;
+      }
       if (method === 'POST') {
         const { name, amount, category, date, note } = body || {};
         const n = str(name, 200).trim();
@@ -567,7 +582,8 @@
       }
       if (method === 'DELETE') {
         if (idx === -1) err('err.notFound');
-        VAULT.expenses.splice(idx, 1); await persist(); return null;
+        const [entry] = VAULT.expenses.splice(idx, 1); await persist();
+        return { entry, index: idx };   // für „Rückgängig“ (v1.9): der Aufrufer gibt genau das an /restore zurück
       }
     }
 

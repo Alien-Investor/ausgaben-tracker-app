@@ -29,6 +29,9 @@ No account, no server, no tracking — all data stays **encrypted on your device
   in der App umschaltbar
 - Familien-Design der Alien-Investor-Apps (Orbitron / Share Tech Mono, lokal gebündelt), Mobile-first —
   Auswahlfelder und Such-X im App-Design statt grauer Systemlisten (seit v1.8)
+- **Rückfragen im App-Design** (seit v1.9): „Löschen?“ erscheint als eigener Dialog statt als Android-Systemdialog —
+  der Systemdialog unterlag nicht dem Screenshot-Schutz der App. Dazu **„Rückgängig“** nach dem Löschen einer Ausgabe
+  (sechs Sekunden, Eintrag kommt unverändert zurück)
 
 Die App ist eine offline-only Web-App (HTML/JS, WebCrypto) in einem Capacitor-Wrapper —
 keine externen Dependencies, keine Netzwerk-Calls.
@@ -75,7 +78,8 @@ node patch-hardening.mjs --check android/app/build/intermediates/packaged_manife
 
 Sicherheits-Audits: v1.5 (internes Audit), **v1.7 run-1 (13.09.2026)** mit dem security-audit-Skill —
 13 Funde, alle vor dem Release behoben; Nachbesserung zu Fund 6 in **v1.7.1**. **v1.7.2** behebt einen Querfund aus dem Review des
-Sachwert-Tresors: Passwortwechsel und gleichzeitiges Speichern (Details im `CHANGELOG.md`).
+Sachwert-Tresors: Passwortwechsel und gleichzeitiges Speichern; **v1.9** ersetzt die Android-Systemdialoge durch eigene Rückfragen,
+weil der Systemdialog nicht unter dem Screenshot-Schutz (FLAG_SECURE) lag (Details im `CHANGELOG.md`).
 
 ## Lizenz
 

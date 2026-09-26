@@ -32,6 +32,8 @@ description: |
     switchable in-app
   - Alien-Investor family design (Orbitron / Share Tech Mono, bundled locally), mobile-first;
     dropdowns and the search clear button in the app's own style instead of grey system lists (v1.8)
+  - Confirmations in the app's own style instead of the Android system dialog, which was not
+    covered by the app's screenshot protection; "Undo" for six seconds after deleting an expense (v1.9)
 
   Works completely offline — built entirely on native WebCrypto, no external dependencies.
 

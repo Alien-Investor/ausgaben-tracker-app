@@ -413,8 +413,19 @@
     </div>
   </div>
 
-  <!-- TOAST -->
-  <div class="toast ok" id="toast" role="status" aria-live="polite"></div>
+  <!-- RÜCKFRAGE-DIALOG (v1.9, statt confirm(): der Android-Systemdialog erbt FLAG_SECURE nicht) -->
+  <div id="dlg" class="dlg-back hidden" role="dialog" aria-modal="true" aria-describedby="dlg-msg" data-action="dialogCancel" data-overlay="1">
+    <div class="dlg">
+      <div id="dlg-msg" class="dlg-msg"></div>
+      <div class="dlg-btns">
+        <button id="dlg-cancel" class="btn ghost" data-action="dialogCancel" data-i18n="dlg.cancel">Abbrechen</button>
+        <button id="dlg-ok" class="btn" data-action="dialogOk">OK</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- TOAST (v1.9: Meldung + optionaler Knopf, z.B. „Rückgängig“) -->
+  <div class="toast ok" id="toast" role="status" aria-live="polite"><span id="toast-msg"></span><button id="toast-btn" class="toast-btn hidden" data-action="toastAction"></button></div>
 
   <script src="icons.js"></script>
   <script src="i18n.js"></script>

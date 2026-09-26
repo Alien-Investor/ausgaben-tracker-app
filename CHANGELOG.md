@@ -2,6 +2,25 @@
 
 Format: `## vX.Y — YYYY-MM-DD`. Offline-App (Capacitor), Web + APK aus einer Codebasis.
 
+## v1.9 — 2026-09-26
+
+Sicherheits- und Darstellungs-Update, Querfund aus Alien Notes. Keine Änderung am Datenformat; Backups aus v1.7.x und v1.8.x laden unverändert.
+
+- **Rückfragen im App-Design statt Android-Systemdialog.** „Ausgabe löschen?“, „Fixkosten-Eintrag dauerhaft löschen?“,
+  „Verbindlichkeit dauerhaft löschen?“ und „Kategorie löschen?“ erscheinen jetzt als eigener Dialog in den Farben der App.
+  Grund: Der Systemdialog unterlag nicht dem Screenshot-Schutz der App — ein Screenshot bei offener Rückfrage konnte den
+  Dialogtext zeigen, während die App dahinter schwarz war. Jede Frage hat den passenden Knopf („Löschen“, „Endgültig löschen“,
+  „Kategorie löschen“, rot), „Abbrechen“ ist die sichere Vorgabe; ESC und ein Tipp daneben brechen ab. Die Löschnachfrage zur
+  Ausgabe nennt Name und Betrag. Wird die App während einer offenen Frage gesperrt, verfällt die Frage.
+- **„Rückgängig“ nach dem Löschen einer Ausgabe.** Sechs Sekunden lang bietet die Meldung „Gelöscht“ einen Knopf, der die
+  Ausgabe unverändert (gleiche ID, gleiche Stelle) zurückholt. Fixkosten, Verbindlichkeiten und Kategorien bleiben endgültig
+  (dort steht die Rückfrage). Beim Sperren verschwindet die Meldung samt Knopf.
+- **Auge im Passwortfeld und Kästchen im App-Design:** Das Auge ist jetzt ein Symbol in Theme-Farbe (durchgestrichen bei
+  sichtbarem Passwort) und schließt sich beim Sperren und nach einem Fehlversuch; das Kästchen „Aktiv“ bei den Fixkosten ist
+  nicht mehr das weiße Systemkästchen.
+- Neue Prüfsuite `verify-dialog.mjs` (42 Prüfungen: kein `confirm()` mehr, Dialog, Tastatur, Sperre, Rückgängig, Säuberung der
+  Wiederherstellung, Auge, Kästchen, EN, Passung 360 px); die sechs bestehenden Suiten laufen über den Dialog-Hook `test-dialog.mjs`.
+
 ## v1.8.1 — 2026-09-21
 
 Reine Darstellungskorrektur. Am Datenformat, an der Verschlüsselung und an deinen Daten ändert sich nichts.

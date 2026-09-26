@@ -1,7 +1,7 @@
 'use strict';
 // app.js — UI-Logik des Ausgaben-Trackers. Klassisches Skript (keine Module): die Funktionen sind
 // global, damit die E2E-Suiten (verify-*.mjs) sie direkt aufrufen können.
-const APP_VERSION = '1.8.1';   // Anzeige in den Einstellungen; muss VERSION_NAME in apk/VERSION entsprechen (build-www.sh setzt es aus VERSION, check-version.mjs prüft es)
+const APP_VERSION = '1.9';   // Anzeige in den Einstellungen; muss VERSION_NAME in apk/VERSION entsprechen (build-www.sh setzt es aus VERSION, check-version.mjs prüft es)
 
 const monthName = (i) => I18N.monthName(i);        // lokalisierter Monatsname (Januar / January)
 const monthShort = (i) => I18N.monthName(i, true); // kurz (Jan)
@@ -582,12 +582,28 @@ async function saveExpense() {
   }
 }
 
+// Löschen mit eigener Rückfrage und „Rückgängig“ im Toast (v1.9): kein Papierkorb, der Eintrag kommt für UNDO_MS an seine alte Stelle
+// zurück (Route /api/expenses/restore). Nach dem await: Sperre kann gelaufen sein → Zustand neu prüfen; die Route meldet einen inzwischen
+// fehlenden Eintrag als err.notFound.
 async function deleteExpense(id) {
-  if (!confirm(I18N.t('confirm.delExpense'))) return;
+  const e0 = dashData && dashData.current_expenses ? dashData.current_expenses.find(x => x.id === id) : null;
+  const line = e0 ? '\n\n' + e0.name + ' · ' + eur(e0.amount) : '';
+  if (!(await ask(I18N.t('confirm.delExpense') + line, { ok: 'dlg.delete', danger: true }))) return;
+  if (!unlocked()) return;
   try {
-    await apiFetch('DELETE', `/api/expenses/${id}`);
-    showToast(I18N.t('toast.deleted'));
+    const removed = await apiFetch('DELETE', `/api/expenses/${id}`);
     loadDashboard();
+    showToast(I18N.t('toast.deleted'), false, { action: { label: I18N.t('toast.undo'), fn: () => undoDeleteExpense(removed) }, ms: UNDO_MS });
+  } catch (e) {
+    showToast(tErr(e), true);
+  }
+}
+async function undoDeleteExpense(removed) {
+  if (!unlocked() || !removed) return;
+  try {
+    await apiFetch('POST', '/api/expenses/restore', removed);
+    loadDashboard();
+    showToast(I18N.t('toast.restored'));
   } catch (e) {
     showToast(tErr(e), true);
   }
@@ -687,7 +703,8 @@ async function toggleFixed(id, active) {
 }
 
 async function deleteFixed(id) {
-  if (!confirm(I18N.t('confirm.delFixed'))) return;
+  if (!(await ask(I18N.t('confirm.delFixed'), { ok: 'dlg.deleteForever', danger: true }))) return;
+  if (!unlocked()) return;
   try {
     await apiFetch('DELETE', `/api/fixed-costs/${id}`);
     showToast(I18N.t('toast.deleted'));
@@ -862,7 +879,8 @@ async function bookLiab(id) {
 }
 
 async function deleteLiab(id) {
-  if (!confirm(I18N.t('confirm.delLiab'))) return;
+  if (!(await ask(I18N.t('confirm.delLiab'), { ok: 'dlg.deleteForever', danger: true }))) return;
+  if (!unlocked()) return;
   try {
     await apiFetch('DELETE', `/api/liabilities/${id}`);
     showToast(I18N.t('toast.deleted'));
@@ -1073,7 +1091,8 @@ async function catDelete(id) {
   try {
     // Zielkategorie kommt aus derselben Logik wie die Route — Dialog und Ergebnis stimmen überein (Audit run-1 #9)
     const { target } = await apiFetch('GET', `/api/categories/delete-target?id=${encodeURIComponent(id)}`);
-    if (!confirm(I18N.t('confirm.delCat', { name: c.name, fb: target }))) return;
+    if (!(await ask(I18N.t('confirm.delCat', { name: c.name, fb: target }), { ok: 'dlg.deleteCat', danger: true }))) return;
+    if (!unlocked() || !categories.some(x => x.id === id)) return;   // Sperre oder Kategorie inzwischen weg
     const res = await apiFetch('DELETE', `/api/categories/${id}`);
     await afterCategoryChange('toast.catDeletedTo', { target: res.target });
   } catch (e) { showToast(tErr(e), true); }
@@ -1093,11 +1112,58 @@ function closeHelp() {
 }
 
 // --- TOAST / ERROR ---
-function showToast(msg, isError) {
-  const t = $('toast');
-  t.textContent = msg;
+// Toast mit optionalem Knopf (v1.9, Kit-Baustein): showToast(msg, isError, {action:{label,fn}, ms}). Ohne Aktion trägt der Knopf
+// keinen Text (Suiten lesen #toast per textContent). hideToast() räumt Text und Aktion — auch beim Sperren (clearRendered), damit kein
+// „Rückgängig“ in eine gesperrte App hinein wirkt; toastAction prüft zusätzlich unlocked(). Tests leeren #toast nie per textContent, sondern hideToast().
+const UNDO_MS = 6000;   // so lange steht „Rückgängig“ nach dem Löschen im Toast
+let toastFn = null, toastTimer = null;
+function showToast(msg, isError, opt) {
+  const t = $('toast'); opt = opt || {};
+  $('toast-msg').textContent = msg;
+  const b = $('toast-btn'); toastFn = opt.action ? opt.action.fn : null;
+  b.textContent = opt.action ? opt.action.label : ''; b.classList.toggle('hidden', !opt.action);
   t.className = 'toast ' + (isError ? 'err' : 'ok') + ' show';
-  setTimeout(() => t.classList.remove('show'), 2800);
+  clearTimeout(toastTimer); toastTimer = setTimeout(hideToast, opt.ms || 2800);
+}
+function hideToast() {
+  clearTimeout(toastTimer); toastTimer = null;
+  $('toast').classList.remove('show'); $('toast-msg').textContent = '';
+  $('toast-btn').textContent = ''; $('toast-btn').classList.add('hidden'); toastFn = null;
+}
+function toastAction() { const fn = toastFn; hideToast(); if (typeof fn === 'function' && unlocked()) fn(); }
+
+// Rückfrage als eigener DOM-Dialog (v1.9, Vorlage Alien Pass v1.9 / Sachwert-Tresor v3.5) statt confirm(): der Android-Systemdialog erbt
+// FLAG_SECURE nicht — ein Screenshot bei offener Löschnachfrage zeigte den Dialogtext, während die App dahinter schwarz war (Querfund Alien Notes).
+// ask(msg,{ok,danger}) liefert ein Promise<boolean>; nur ein Dialog zur Zeit (eine zweite Frage gilt sofort als abgelehnt); Escape/Hintergrund
+// = Abbrechen; Tab pendelt zwischen den Knöpfen; clearRendered() schließt ihn beim Sperren mit false, und JEDER Aufrufer prüft nach dem await
+// seinen Zustand neu (unlocked()? Eintrag noch da?). Text nur per textContent (pre-line macht Absätze aus \n\n). Kein Eingabefeld nötig.
+let dlgResolve = null, dlgPrev = null;
+function ask(msg, opt) {
+  opt = opt || {}; if (dlgResolve) return Promise.resolve(false);
+  return new Promise(res => {
+    dlgResolve = res; dlgPrev = document.activeElement; $('dlg-msg').textContent = msg;
+    const b = $('dlg-ok'); b.textContent = I18N.t(opt.ok || 'dlg.ok'); b.classList.toggle('danger', !!opt.danger);
+    $('dlg').classList.remove('hidden'); $('dlg-cancel').focus();
+  });
+}
+function dialogClose(v) {
+  const r = dlgResolve; if (!r) return; dlgResolve = null;
+  $('dlg').classList.add('hidden'); $('dlg-msg').textContent = ''; $('dlg-ok').classList.remove('danger');
+  const f = dlgPrev; dlgPrev = null;
+  if (f && document.contains(f) && typeof f.focus === 'function') { try { f.focus(); } catch (_) { /* Element nicht mehr fokussierbar */ } }
+  r(!!v);
+}
+function dialogOk() { dialogClose(true); }
+function dialogCancel() { dialogClose(false); }
+function dialogOpen() { return !!dlgResolve; }
+function dialogKey(ev) {
+  if (!dlgResolve) return false;
+  if (ev.key === 'Escape') { dialogCancel(); return true; }
+  if (ev.key === 'Tab') {
+    const ring = [$('dlg-cancel'), $('dlg-ok')]; const i = ring.indexOf(document.activeElement);
+    ring[(i + (ev.shiftKey ? -1 : 1) + ring.length) % ring.length].focus(); return true;
+  }
+  return false;
 }
 
 function showError(msg) {
@@ -1175,6 +1241,7 @@ async function doUnlock() {
     enterApp();
   } catch (e) {
     errEl.textContent = tErr(e);
+    maskPasswordFields();   // Fehlversuch: Auge zu (Sperr-Hygiene)
   } finally { btn.disabled = false; btn.textContent = I18N.t('auth.unlockBtn'); }
 }
 
@@ -1196,6 +1263,8 @@ function clearRendered() {
   ['modal-expense', 'modal-fixed', 'modal-liab', 'modal-restore'].forEach(id => $(id).classList.remove('open'));
   pendingRestore = null; lastFocus = null;
   $('help-overlay').classList.add('hidden');
+  dialogClose(false); hideToast();   // offene Rückfrage verfällt (Aufrufer sieht false), Toast samt „Rückgängig“ weg (v1.9)
+  maskPasswordFields();
   $('liab-open-total').classList.remove('warn');
   $('set-autolock').value = '5';
   closeMenus(); syncCombos();   // Menüs tragen Kategorienamen; Knopfbeschriftungen den geleerten Selects anpassen
@@ -1230,7 +1299,7 @@ function resetIdle() {
   if (!window.LocalDB.isUnlocked()) return;
   const ms = autolockMs();
   if (!ms) return;
-  idleTimer = setTimeout(() => { showToast(I18N.t('toast.autolocked')); lockApp(); }, ms);
+  idleTimer = setTimeout(() => { lockApp(); showToast(I18N.t('toast.autolocked')); }, ms);   // erst sperren, dann melden (clearRendered räumt den Toast)
 }
 ['click', 'keydown', 'touchstart', 'scroll', 'mousemove'].forEach(evt =>
   document.addEventListener(evt, () => { if (window.LocalDB.isUnlocked()) resetIdle(); }, { passive: true }));
@@ -1242,7 +1311,7 @@ document.addEventListener('visibilitychange', () => {
   if (document.hidden) { hiddenAt = Date.now(); return; }
   const away = hiddenAt ? Date.now() - hiddenAt : 0; hiddenAt = 0;
   const ms = autolockMs();
-  if (ms && away > ms) { showToast(I18N.t('toast.autolocked')); lockApp(); }
+  if (ms && away > ms) { lockApp(); showToast(I18N.t('toast.autolocked')); }
   else resetIdle();
 });
 
@@ -1285,17 +1354,23 @@ function enhancePasswordFields() {
     wrap.appendChild(inp);
     const btn = document.createElement('button');
     btn.type = 'button';
-    btn.className = 'pw-eye';
+    btn.className = 'pw-eye';   // Symbol als CSS-Maske (v1.9, Kit-Stand), Zustand in aria-pressed
     btn.setAttribute('aria-label', I18N.t('pw.toggle'));
-    btn.innerHTML = ICON.svg('eye');
-    btn.addEventListener('click', () => {
-      const show = inp.type === 'password';
-      inp.type = show ? 'text' : 'password';
-      btn.innerHTML = ICON.svg(show ? 'eyeOff' : 'eye');
-      inp.focus();
-    });
+    btn.setAttribute('aria-pressed', 'false');
+    btn.dataset.showpass = inp.id;
+    btn.addEventListener('mousedown', e => e.preventDefault());   // Fokus und Tastatur bleiben im Feld
+    btn.addEventListener('click', () => { setEye(btn, inp.type === 'password'); inp.focus(); });
     wrap.appendChild(btn);
   });
+}
+function setEye(btn, on) {
+  const inp = $(btn.dataset.showpass); if (!inp) return;
+  inp.type = on ? 'text' : 'password';
+  btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+}
+// Sperr-Hygiene: alle Augen zu, Felder maskiert (Sperren, Fehlversuch)
+function maskPasswordFields() {
+  document.querySelectorAll('.pw-eye[data-showpass]').forEach(btn => setEye(btn, false));
 }
 
 // --- EVENT-DELEGATION (statt onclick-Attributen; CSP script-src ohne 'unsafe-inline') ---
@@ -1325,6 +1400,7 @@ const ACTIONS = {
   chip: (_, arg) => setChip(arg), chipAll: () => setChip(null),
   openHelp: () => openHelp(), closeHelp: () => closeHelp(),
   toggleCombo: (_, arg) => toggleCombo(arg), chooseOpt: (_, arg, el) => chooseOpt(arg, el),
+  dialogOk: () => dialogOk(), dialogCancel: () => dialogCancel(), toastAction: () => toastAction(),
 };
 const CHANGES = {
   setAutolock: (el) => setAutolock(el.value),
@@ -1345,6 +1421,7 @@ document.addEventListener('change', e => {
 });
 // ESC: offenes Auswahlmenü, sonst Handbuch, sonst offenes Modal schließen
 document.addEventListener('keydown', e => {
+  if (dialogKey(e)) { e.preventDefault(); return; }   // offener Dialog: Escape bricht ab, Tab pendelt (v1.9)
   if (e.key !== 'Escape') return;
   if (document.querySelector('.combo-menu:not(.hidden)')) { closeMenus(); return; }
   if (!$('help-overlay').classList.contains('hidden')) { closeHelp(); return; }
