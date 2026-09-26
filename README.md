@@ -69,7 +69,7 @@ npm install
 npx cap add android          # einmalig
 ./build-www.sh               # kopiert ../public nach www/ und setzt die Versionsanzeige aus VERSION
 npx cap sync android
-node patch-hardening.mjs     # allowBackup=false, INTERNET-Permission raus, FLAG_SECURE — bricht ab, wenn etwas fehlt
+node patch-hardening.mjs     # allowBackup=false, INTERNET-Permission raus, FLAG_SECURE, Autofill-Ausschluss — bricht ab, wenn etwas fehlt
 ( cd android && ./gradlew assembleRelease --no-daemon )
 node patch-hardening.mjs --check android/app/build/intermediates/packaged_manifests/release/AndroidManifest.xml
 # Release-Signierung erfolgt mit einem privaten Keystore (nicht in diesem Repo). Ohne Signierkonfiguration
@@ -79,7 +79,7 @@ node patch-hardening.mjs --check android/app/build/intermediates/packaged_manife
 Sicherheits-Audits: v1.5 (internes Audit), **v1.7 run-1 (13.09.2026)** mit dem security-audit-Skill —
 13 Funde, alle vor dem Release behoben; Nachbesserung zu Fund 6 in **v1.7.1**. **v1.7.2** behebt einen Querfund aus dem Review des
 Sachwert-Tresors: Passwortwechsel und gleichzeitiges Speichern; **v1.9** ersetzt die Android-Systemdialoge durch eigene Rückfragen,
-weil der Systemdialog nicht unter dem Screenshot-Schutz (FLAG_SECURE) lag (Details im `CHANGELOG.md`).
+weil der Systemdialog nicht unter dem Screenshot-Schutz (FLAG_SECURE) lag; **v1.10** nimmt die WebView vom Android-Autofill-Framework aus, damit ein fremder Passwort-Manager als Autofill-Dienst die Passphrase-Felder nicht sieht und nicht anbieten kann, sie zu speichern (Details im `CHANGELOG.md`).
 
 ## Lizenz
 

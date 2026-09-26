@@ -2,7 +2,8 @@
 // Läuft in build-apk.sh nach `npx cap sync` — überlebt damit auch ein frisches `npx cap add android`.
 //   1) AndroidManifest: allowBackup=false (keine ADB-/Cloud-Backups der Vault-Daten)
 //   2) AndroidManifest: INTERNET-Permission ENTFERNEN (App kann nachweisbar nicht funken)
-//   3) MainActivity: FLAG_SECURE (kein Screenshot/Recording, keine Recents-Vorschau)
+//   3) MainActivity: FLAG_SECURE (kein Screenshot/Recording, keine Recents-Vorschau) + WebView vom Android-Autofill-Framework
+//      ausgenommen (v1.10: ein fremder Passwort-Manager als Autofill-Dienst sieht die Passphrase-Felder sonst und bietet an, sie zu speichern)
 // Die Prüfung am Ende läuft UNBEDINGT (Audit run-1 #13: vorher meldete das Skript Erfolg, sobald irgendetwas
 // ersetzt wurde — eine INTERNET-Zeile in anderer Schreibweise blieb dann stehen). Aufruf mit --check <manifest>
 // prüft nur (für den zusammengeführten Manifest nach dem Gradle-Build, siehe build-apk.sh).
@@ -34,24 +35,48 @@ if (m !== before) { writeFileSync(MANIFEST, m); console.log('Manifest gehärtet 
 else console.log('Manifest bereits gehärtet.');
 assertHardened(m, MANIFEST);
 
+// MainActivity: Quelltext wird bei jeder Abweichung komplett neu geschrieben (nicht nur, wenn FLAG_SECURE fehlt — sonst bliebe eine
+// alte Fassung ohne den Autofill-Ausschluss stehen), danach werden beide Härtungen im erzeugten Java geprüft.
 const MAIN = 'android/app/src/main/java/org/alieninvestor/ausgaben/MainActivity.java';
-let j = readFileSync(MAIN, 'utf8');
-if (!j.includes('FLAG_SECURE')) {
-  j = `package org.alieninvestor.ausgaben;
+const MAIN_SRC = `package org.alieninvestor.ausgaben;
 
+import android.os.Build;
 import android.os.Bundle;
+import android.view.View;
 import android.view.WindowManager;
 import com.getcapacitor.BridgeActivity;
 
 public class MainActivity extends BridgeActivity {
+    // Kein Android-Autofill, wirksamer Hebel (v1.10, Querfund Alien Pass v1.13): Chromiums WebView-Autofill holt den AutofillManager
+    // über den Context der WebView (= diese Activity); ohne Manager legt es keine Sitzung an und meldet kein Feld an den Dienst.
+    // setImportantForAutofill allein wirkt bei WebViews nicht (Gerätetest GrapheneOS 26.09.2026).
+    @Override
+    public Object getSystemService(String name) {
+        if ("autofill".equals(name)) return null;   // Dienstname des AutofillManager (API 26+, Konstante ist nicht öffentlich)
+        return super.getSystemService(name);
+    }
+
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         // Kein Screenshot/Screen-Recording, keine Vorschau im App-Switcher (Recents)
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_SECURE);
+        // Kein Android-Autofill (API 26+, v1.10 — Querfund Alien Pass v1.12): Die WebView meldet sonst jedes Passwortfeld an den
+        // systemweiten Autofill-Dienst — eine fremde App, die den Inhalt zum Speichern anbieten könnte. autocomplete="off" im HTML
+        // hält das nicht auf.
+        if (Build.VERSION.SDK_INT >= 26) {
+            View webView = getBridge().getWebView();
+            webView.setImportantForAutofill(View.IMPORTANT_FOR_AUTOFILL_NO_EXCLUDE_DESCENDANTS);
+        }
     }
 }
 `;
-  writeFileSync(MAIN, j);
-  console.log('MainActivity: FLAG_SECURE injiziert.');
-} else console.log('MainActivity bereits gehärtet (FLAG_SECURE).');
+const cur = readFileSync(MAIN, 'utf8');
+if (cur !== MAIN_SRC) { writeFileSync(MAIN, MAIN_SRC); console.log('MainActivity: FLAG_SECURE + Autofill-Ausschluss geschrieben.'); }
+else console.log('MainActivity bereits gehärtet (FLAG_SECURE + Autofill-Ausschluss).');
+const jm = readFileSync(MAIN, 'utf8');
+if (!jm.includes('FLAG_SECURE') || !jm.includes('setImportantForAutofill(View.IMPORTANT_FOR_AUTOFILL_NO_EXCLUDE_DESCENDANTS)')
+    || !jm.includes('if ("autofill".equals(name)) return null;')) {
+  console.error('FEHLER: MainActivity-Härtung unvollständig (FLAG_SECURE / Autofill-Ausschluss) — Build abgebrochen!');
+  process.exit(1);
+}

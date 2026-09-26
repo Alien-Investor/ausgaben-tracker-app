@@ -2,6 +2,15 @@
 
 Format: `## vX.Y — YYYY-MM-DD`. Offline-App (Capacitor), Web + APK aus einer Codebasis.
 
+## v1.10 — 2026-09-26
+
+Härtung ohne Änderung an Oberfläche, Datenformat oder Daten (Querfund aus Alien Pass v1.12/v1.13).
+- **Neu — Android:** Die App nimmt ihre Felder vom Android-Autofill-Framework aus. Bisher meldete die WebView jedes Passwortfeld an den
+  systemweiten Autofill-Dienst — ist dort ein Passwort-Manager eingerichtet, bot er sich in den Passphrase-Feldern an und konnte anbieten,
+  die Passphrase zu speichern. Das Attribut `autocomplete="off"` im HTML hält das nicht auf, und die Android-Markierung „nicht wichtig für
+  Autofill“ beachtet die WebView ebenfalls nicht. Darum bekommt die WebView jetzt gar keinen Zugang zum Autofill-Dienst (wenige Zeilen in der
+  MainActivity, Quelltext wie bisher in `apk/patch-hardening.mjs`, das den Ausschluss im erzeugten Java prüft).
+
 ## v1.9 — 2026-09-26
 
 Sicherheits- und Darstellungs-Update, Querfund aus Alien Notes. Keine Änderung am Datenformat; Backups aus v1.7.x und v1.8.x laden unverändert.
