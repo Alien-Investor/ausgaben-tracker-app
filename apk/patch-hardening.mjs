@@ -40,6 +40,7 @@ assertHardened(m, MANIFEST);
 const MAIN = 'android/app/src/main/java/org/alieninvestor/ausgaben/MainActivity.java';
 const MAIN_SRC = `package org.alieninvestor.ausgaben;
 
+import android.content.Intent;
 import android.os.Build;
 import android.os.Bundle;
 import android.view.View;
@@ -56,8 +57,23 @@ public class MainActivity extends BridgeActivity {
         return super.getSystemService(name);
     }
 
+    // Gegenstück (v1.10.1, Diff-Review Alien Pass v1.15): Activity.restoreAutofillSaveUi() ruft getAutofillManager() OHNE Null-Prüfung,
+    // ausgelöst allein durch diese Intent-Extras — jede App könnte die App sonst beim Schließen abstürzen lassen.
+    private static void dropAutofillRestore(Intent i) {
+        if (i == null) return;
+        i.removeExtra("android.view.autofill.extra.RESTORE_SESSION_TOKEN");
+        i.removeExtra("android.view.autofill.extra.RESTORE_CROSS_ACTIVITY");
+    }
+
+    @Override
+    protected void onNewIntent(Intent intent) {
+        dropAutofillRestore(intent);
+        super.onNewIntent(intent);
+    }
+
     @Override
     public void onCreate(Bundle savedInstanceState) {
+        dropAutofillRestore(getIntent());
         super.onCreate(savedInstanceState);
         // Kein Screenshot/Screen-Recording, keine Vorschau im App-Switcher (Recents)
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_SECURE);
@@ -76,7 +92,9 @@ if (cur !== MAIN_SRC) { writeFileSync(MAIN, MAIN_SRC); console.log('MainActivity
 else console.log('MainActivity bereits gehärtet (FLAG_SECURE + Autofill-Ausschluss).');
 const jm = readFileSync(MAIN, 'utf8');
 if (!jm.includes('FLAG_SECURE') || !jm.includes('setImportantForAutofill(View.IMPORTANT_FOR_AUTOFILL_NO_EXCLUDE_DESCENDANTS)')
-    || !jm.includes('if ("autofill".equals(name)) return null;')) {
+    || !jm.includes('if ("autofill".equals(name)) return null;') || !jm.includes('return super.getSystemService(name);')
+    || !jm.includes('dropAutofillRestore(getIntent());') || !jm.includes('dropAutofillRestore(intent);')
+    || !jm.includes('i.removeExtra("android.view.autofill.extra.RESTORE_SESSION_TOKEN");') || /\/\/[^\n]*if \("autofill"\.equals/.test(jm)) {
   console.error('FEHLER: MainActivity-Härtung unvollständig (FLAG_SECURE / Autofill-Ausschluss) — Build abgebrochen!');
   process.exit(1);
 }

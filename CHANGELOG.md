@@ -2,6 +2,12 @@
 
 Format: `## vX.Y — YYYY-MM-DD`. Offline-App (Capacitor), Web + APK aus einer Codebasis.
 
+## v1.10.1 — 2026-09-26
+
+- **Android — Absturz verhindert (internes Diff-Review, Querfund Alien Pass v1.15):** Seit v1.10 bekommt die WebView keinen
+  Autofill-Dienst. Eine andere App konnte den Ausgaben-Tracker mit bestimmten Zusatzangaben starten, und Android stürzte dann beim
+  Schließen der App ab (keine Daten betroffen). Die App entfernt diese Angaben jetzt beim Start.
+
 ## v1.10 — 2026-09-26
 
 Härtung ohne Änderung an Oberfläche, Datenformat oder Daten (Querfund aus Alien Pass v1.12/v1.13).
