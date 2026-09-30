@@ -38,8 +38,38 @@ keine externen Dependencies, keine Netzwerk-Calls.
 
 ## Install
 
-- **Zap Store** (Nostr App Store): nach *Ausgaben-Tracker* suchen
-- Oder die APK aus dem letzten Release sideloaden
+Bewusst **nicht bei Google Play**. Signierte Releases gibt es auf der eigenen Download-Adresse
+[api.alien-investor.org/downloads/ausgaben-tracker/](https://api.alien-investor.org/downloads/ausgaben-tracker/) und im
+[Zap Store](https://zapstore.dev/apps/org.alieninvestor.ausgaben) (Nostr App Store). Jedes Release liegt zusätzlich als Spiegel auf
+[GitHub](https://github.com/Alien-Investor/ausgaben-tracker-app/releases).
+
+**[Obtainium](https://github.com/ImranR98/Obtainium)** (automatische Updates, ohne Google) — in Obtainium **„App hinzufügen“** antippen:
+
+1. „Quell-URL der App“:
+   ```
+   https://api.alien-investor.org/downloads/ausgaben-tracker/
+   ```
+2. Unter „Zusatzoptionen für HTML“, „Versionsextraktion per RegEx“:
+   ```
+   ausgaben-tracker-([0-9]+(\.[0-9]+)+)\.apk$
+   ```
+3. „Zu verwendende Gruppe abgleichen“: `$1`
+4. „Expected signing certificate hashes“ (so heißt es auch in der deutschen Obtainium-Fassung):
+   ```
+   DB:C5:08:71:53:B4:59:21:82:DD:13:1A:73:0C:11:A0:F7:12:4E:34:42:6C:54:2B:4B:A6:88:5A:B1:CC:01:0E
+   ```
+5. Mit **„+“** hinzufügen → **Installieren**. Obtainium meldet Updates danach automatisch.
+
+Die RegEx braucht Obtainium, um auf einer Download-Seite die Versionsnummer aus dem Dateinamen zu lesen; ohne sie kann es nicht
+mit der installierten Version vergleichen. Der Zertifikats-Hash ist eine harte Sperre: Eine APK mit anderem Signaturschlüssel installiert Obtainium gar nicht.
+Werte zum Kopieren, oder mit „In Obtainium öffnen“ (alles vorbelegt): [Obtainium-Blatt auf der Website](https://alien-investor.org/apps.html#obtainium-ausgaben).
+
+> **Noch mit der Codeberg-Adresse eingerichtet?** Dort erscheinen keine Releases mehr. Obtainium kann die Quelle einer App nicht ändern, deshalb einmalig:
+> vorher im Tab „Export“ ein verschlüsseltes `.vault`-Backup anlegen, den Eintrag „Ausgaben-Tracker“ entfernen und im Dialog nur **„Aus Obtainium entfernen“**
+> eingeschaltet lassen (**„Vom Gerät deinstallieren“ aus** — das löscht App und Daten), dann wie oben neu hinzufügen.
+> Obtainium erkennt die installierte App, Signatur und Paket-ID bleiben gleich.
+
+**Ohne Obtainium:** [Download-Seite](https://api.alien-investor.org/downloads/ausgaben-tracker/) → `.apk` laden und installieren.
 
 **Signatur-Fingerprint** — zum Prüfen der Echtheit, über alle Versionen gleich.
 Derselbe Wert, zwei Schreibweisen — beides ist der SHA-256 des Signatur-Zertifikats:

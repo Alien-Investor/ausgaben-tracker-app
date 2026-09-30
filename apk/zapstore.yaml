@@ -1,6 +1,15 @@
 # Zapstore-Listing — Ausgaben-Tracker (offline, verschlüsselt; Android-Wrapper)
 # Veröffentlichen:  set -a; source .env; set +a;  zsp publish zapstore.yaml
-repository: https://codeberg.org/Alien-Investor/ausgaben-tracker
+repository: https://github.com/Alien-Investor/ausgaben-tracker-app
+# APK von der eigenen Download-Seite (seit 01.10.2026 ab v1.10.1, Muster Alien Fitness; GitHub ist nur Spiegel). Die Seite schreibt apk/make-release.sh
+# (privates Repo) mit genau einem Link auf die aktuelle APK.
+release_source:
+  version:
+    url: https://api.alien-investor.org/downloads/ausgaben-tracker/
+    selector: "a"
+    match: "ausgaben-tracker-([0-9]+(?:\\.[0-9]+)+)\\.apk"
+  asset_url: https://api.alien-investor.org/downloads/ausgaben-tracker/ausgaben-tracker-{version}.apk
+match: '.*\.apk$'
 name: Ausgaben-Tracker
 pubkey: npub1cnlymdm5jz8eayycwynhze4s2zh9n0y04atce8ahxl5qfkptplls0s40hp
 
@@ -48,7 +57,7 @@ tags:
   - tools
   - productivity
 
-website: https://alien-investor.org
+website: https://alien-investor.org/apps.html
 icon: ./assets/icon-only.png
 images:
   - ./screenshots/1-overview.png
