@@ -2,6 +2,26 @@
 
 Format: `## vX.Y — YYYY-MM-DD`. Offline-App (Capacitor), Web + APK aus einer Codebasis.
 
+## v1.11 — 2026-10-04
+
+Wartungsrelease. Keine Änderung am Datenformat; Backups aus allen bisherigen Versionen laden unverändert.
+
+- **Backup-Datei geht bei der Auto-Sperre nicht mehr verloren.** Die Dateiauswahl ist unter Android eine eigene App. Lief
+  währenddessen die Auto-Sperre ab, kam die gewählte Backup-Datei in eine gesperrte App und wurde verworfen. Jetzt merkt sich die
+  App nur, welche Datei gewählt wurde (gelesen wird sie erst nach dem Entsperren). Der Sperrbildschirm zeigt „Datei gewählt — zum
+  Wiederherstellen entsperren“. Entsperrst du innerhalb von fünf Minuten, läuft die Wiederherstellung mit genau dieser Datei weiter
+  (es folgt das Passwort des Backups); später meldet die App „Dateiwahl verfallen“. Das gilt auch, wenn die Datei gerade gelesen
+  wurde oder das Passwortfenster schon offen war. Die Sperre selbst greift wie bisher. Wiederherstellen direkt vom Sperrbildschirm aus
+  funktioniert unverändert.
+- **Lesefehler werden gemeldet.** Ließ sich eine gewählte Datei nicht lesen (z. B. weil sie nach der Auswahl ersetzt wurde), passierte
+  bisher nichts. Jetzt erscheint „Datei konnte nicht gelesen werden — bitte erneut wählen.“
+- **Intern angeglichen an die Schwester-Apps (unter Android ohne sichtbare Änderung):** Auge im Passwortfeld behält beim Aufdecken
+  die Cursorposition und hebt eine Markierung auf, Scrollbalken im Neon-Look bei Bedienung mit der Maus. Beides wirkt nur, wenn der
+  Code im Desktop-Browser läuft (lokaler Test); eine Browser-Version des Trackers gibt es seit Juni 2026 nicht mehr.
+- **Handbuch:** Der Quellcode liegt auf GitHub (`Alien-Investor/ausgaben-tracker-app`), nicht mehr auf Codeberg.
+- **Android:** Capacitor 6.2.1 → 6.2.2. Die Version sperrt einen internen Proxy-Pfad der Brücke gegen fremde Inhalte. Die App hat keine
+  Internet-Berechtigung, ist also kaum betroffen; das Update wird trotzdem mitgenommen.
+
 ## v1.10.1 — 2026-09-26
 
 - **Android — Absturz verhindert (internes Diff-Review, Querfund Alien Pass v1.15):** Seit v1.10 bekommt die WebView keinen

@@ -20,7 +20,9 @@ No account, no server, no tracking — all data stays **encrypted on your device
 - **Verschlüsselter Tresor:** Master-Passwort, AES-256-GCM, Schlüssel via PBKDF2-SHA256
   (600.000 Iterationen), Auto-Lock nach Inaktivität
 - **Backup:** verschlüsselter `.vault`-Export/-Import zum Geräte-Umzug — beim Import fragt die App
-  nach dem Passwort des Backups und ersetzt die vorhandenen Daten erst, wenn es sich öffnen lässt
+  nach dem Passwort des Backups und ersetzt die vorhandenen Daten erst, wenn es sich öffnen lässt.
+  Sperrt die App, während die Dateiauswahl offen ist, geht die gewählte Datei nicht verloren: nach dem
+  Entsperren (innerhalb von fünf Minuten) läuft die Wiederherstellung weiter (seit v1.11)
 - **Einstellungen** (seit v1.7): Auto-Lock wählbar (Aus / 1 / 5 / 15 / 30 Minuten), Jetzt sperren,
   Master-Passwort ändern, Farbschema Schwarz (Neon) / Soft (Marine), eigene Kategorien anlegen,
   umbenennen und löschen, Versionsanzeige

@@ -35,7 +35,8 @@ description: |
   - Encrypted vault: master password, AES-256-GCM, key via PBKDF2-SHA256 (600k iterations),
     auto-lock after inactivity
   - Encrypted .vault backup: export and import to move between devices — the import asks
-    for the backup's password and only replaces existing data once the backup opens (v1.7)
+    for the backup's password and only replaces existing data once the backup opens (v1.7);
+    if the app auto-locks while the file picker is open, the restore continues after unlocking (v1.11)
   - Settings tab (v1.7): auto-lock 0/1/5/15/30 min, lock now, change master password,
     black (neon) or soft (navy) theme, manage your own categories, version display
   - Overview by category with search and category filter (v1.7)

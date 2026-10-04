@@ -1,7 +1,7 @@
 'use strict';
 // app.js — UI-Logik des Ausgaben-Trackers. Klassisches Skript (keine Module): die Funktionen sind
 // global, damit die E2E-Suiten (verify-*.mjs) sie direkt aufrufen können.
-const APP_VERSION = '1.10.1';   // Anzeige in den Einstellungen; muss VERSION_NAME in apk/VERSION entsprechen (build-www.sh setzt es aus VERSION, check-version.mjs prüft es)
+const APP_VERSION = '1.11';   // Anzeige in den Einstellungen; muss VERSION_NAME in apk/VERSION entsprechen (build-www.sh setzt es aus VERSION, check-version.mjs prüft es)
 
 const monthName = (i) => I18N.monthName(i);        // lokalisierter Monatsname (Januar / January)
 const monthShort = (i) => I18N.monthName(i, true); // kurz (Jan)
@@ -948,17 +948,54 @@ async function exportBackup() {
 // Sperrbildschirm aus möglich; eine unbrauchbare Datei kann die vorhandenen Daten nicht zerstören.
 const RESTORE_MAX_BYTES = 8 * 1024 * 1024;
 let pendingRestore = null;
+// Nachgeholter Import (v1.11, Port aus Sachwert-Tresor v3.6/v3.6.1, Nutzer 26.09.2026): der Datei-Picker ist eine fremde Android-Activity, und die
+// Sperre läuft währenddessen weiter (Wegzeit-Prüfung in visibilitychange, Inaktivitäts-Timer). Sperrte die App, während der Picker offen war,
+// räumte lockApp() die Datei weg (Modal zu, pendingRestore=null) — still verworfen. Jetzt: nur den Dateiverweis merken (Handle, kein Inhalt —
+// gelesen wird erst nach dem Entsperren), Toast auf dem Sperrbildschirm, nach doUnlock() Backup-Tab + derselbe Handler mit derselben Datei.
+// Die Frist PENDING_FILE_MS läuft ab dem Zurückstellen, also ab der Sperre (Audit v1.11 b1: ab der Dateiwahl gerechnet war ein Verweis aus
+// einem offenen Modal bei Auto-Lock ≥ 5 min schon beim Sperren verfallen). Zurückgestellte Uhr = verfallen, der Verweis wird IMMER verbraucht,
+// verfallen meldet ein Toast. Sperr-Regel unverändert (keine Schonfrist). Im gesperrten Zustand wird nie fertig gelesen: lockApp() bricht eine
+// laufende Lesung ab, autoLock() stellt sie zurück (Audit a2).
+// Anders als im Tresor ist Wiederherstellen auch VOM Sperrbildschirm aus erlaubt: zurückgestellt wird nur, wenn der Picker in einer entsperrten
+// Sitzung geöffnet wurde (pickSession) — eine Wahl vom Sperrbildschirm läuft wie bisher direkt ins Passwort-Modal und ersetzt einen
+// zurückgestellten Verweis erst, wenn wirklich eine Datei kommt (Abbruch im Picker lässt ihn stehen, Audit b2).
+let pendingFile = null, pickSession = false, restoreSrc = null, curRead = null, pendingTimer = null;
+const PENDING_FILE_MS = 5 * 60000;
+function pickRestore() { pickSession = unlocked(); $('restore-file').click(); }
+function deferFile(file) {
+  const p = pendingFile = { file, at: Date.now() };
+  clearTimeout(pendingTimer); pendingTimer = setTimeout(() => { p.file = null; }, PENDING_FILE_MS + 60000);   // Puffer > Entsperrdauer (PBKDF2), Frist prüft runPendingFile   // Handle nicht unbefristet im Speicher (a6); at bleibt für die Verfallsmeldung
+  showToast(I18N.t('toast.importDeferred'), false, { ms: 8000 });
+}
+// t0 = Zeitpunkt des Entsperr-Klicks: die Frist zählt bis dahin, nicht bis nach der Schlüsselableitung (Audit R2 #1)
+function runPendingFile(t0) {
+  const p = pendingFile; pendingFile = null; clearTimeout(pendingTimer);
+  if (!p || !unlocked()) return;
+  hideToast();   // „zum Wiederherstellen entsperren“ ist jetzt erledigt bzw. falsch (a5/b3)
+  const d = (t0 || Date.now()) - p.at;
+  if (d < 0 || Date.now() < p.at || d > PENDING_FILE_MS || !p.file) { showToast(I18N.t('toast.importExpired'), true, { ms: 6000 }); return; }
+  showTab('export'); pickSession = true;
+  restoreBackup({ target: { files: [p.file], value: '' } });
+}
 function restoreBackup(event) {
   const file = event.target.files[0];
   event.target.value = '';
   if (!file) return;
-  if (file.size > RESTORE_MAX_BYTES) { showToast(I18N.t('err.tooLarge'), true); return; }
-  const reader = new FileReader();
+  const fromSession = pickSession;
+  if (file.size > RESTORE_MAX_BYTES) { showToast(I18N.t('err.tooLarge'), true); return; }   // Metadatum, vor dem Zurückstellen (Audit c3: sonst falsche Zusage)
+  if (fromSession && !unlocked()) { deferFile(file); return; }   // gesperrt, während der Picker offen war: nur den Verweis merken
+  const reader = new FileReader(), me = curRead = { reader, file, fromSession };
+  const done = () => { const cur = curRead === me; if (cur) curRead = null; return cur; };   // false: abgebrochen oder von einer neueren Wahl abgelöst
+  // Geänderte/ersetzte Datei (z. B. Syncthing) liest Chromium nicht (NotReadableError) — ohne onerror blieb es still (Tresor-Audit run-6 #2)
+  reader.onerror = () => { if (done()) showToast(I18N.t('err.readFile'), true); };
   reader.onload = () => {
+    if (!done()) return;
+    if (fromSession && !unlocked()) { deferFile(file); return; }   // Absicherung; lockApp() bricht laufende Lesungen ohnehin ab
     try {
       const content = String(reader.result);
       window.LocalDB.checkBackup(content);
-      pendingRestore = content;
+      if (!fromSession) { pendingFile = null; clearTimeout(pendingTimer); }   // gültige neue Wahl vom Sperrbildschirm ersetzt einen zurückgestellten Verweis (R2 #2: erst nach checkBackup)
+      pendingRestore = content; restoreSrc = fromSession ? file : null;
       $('restore-file-name').textContent = I18N.t('restore.file', { name: file.name });
       $('restore-pass').value = ''; $('restore-err').textContent = '';
       openModal('modal-restore', 'restore-pass');
@@ -966,14 +1003,14 @@ function restoreBackup(event) {
   };
   reader.readAsText(file);
 }
-function closeRestore() { pendingRestore = null; $('restore-pass').value = ''; closeModal('modal-restore'); }
+function closeRestore() { pendingRestore = null; restoreSrc = null; $('restore-pass').value = ''; closeModal('modal-restore'); }
 async function saveRestore() {
   if (!pendingRestore) return;
   const btn = $('btn-restore'); const errEl = $('restore-err');
   errEl.textContent = ''; btn.disabled = true;
   try {
     await window.LocalDB.restoreVault(pendingRestore, $('restore-pass').value);
-    pendingRestore = null;
+    pendingRestore = null; restoreSrc = null; pendingFile = null;   // ein älterer zurückgestellter Verweis gehört nicht zu den neuen Daten
     $('restore-pass').value = '';
     closeModal('modal-restore');
     clearIdle();
@@ -1222,6 +1259,7 @@ async function doSetup() {
   btn.disabled = true;
   try {
     await window.LocalDB.setup(p1);
+    pendingFile = null;   // ein Verweis gehört zum alten Tresor, nie zu einem neu eingerichteten (Tresor-Audit run-6 #5)
     $('setup-pass1').value = '';
     $('setup-pass2').value = '';
     enterApp();
@@ -1235,10 +1273,12 @@ async function doUnlock() {
   errEl.textContent = '';
   const btn = $('unlock-btn');
   btn.disabled = true; btn.textContent = I18N.t('auth.unlocking');
+  const t0 = Date.now();   // Klickzeit für die Frist des zurückgestellten Imports (Ableitung dauert am Handy Sekunden)
   try {
     await window.LocalDB.unlock($('unlock-pass').value);
     $('unlock-pass').value = '';
     enterApp();
+    runPendingFile(t0);   // Import, der beim Sperren zurückgestellt wurde, läuft jetzt weiter (v1.11)
   } catch (e) {
     errEl.textContent = tErr(e);
     maskPasswordFields();   // Fehlversuch: Auge zu (Sperr-Hygiene)
@@ -1258,10 +1298,10 @@ function clearRendered() {
    'liab-due', 'liab-note', 'pass-old', 'pass-new1', 'pass-new2', 'dash-search', 'cat-new', 'restore-pass'].forEach(id => {
     const el = $(id); if (el) el.value = '';
   });
-  $('fc-usage').value = 'privat'; $('fc-active').checked = false; $('restore-file-name').textContent = '';
+  $('fc-usage').value = 'privat'; $('fc-active').checked = false; $('restore-file-name').textContent = ''; $('restore-err').textContent = '';
   ['expense-modal-title', 'fixed-modal-title', 'liab-modal-title'].forEach(id => { $(id).textContent = ''; });
   ['modal-expense', 'modal-fixed', 'modal-liab', 'modal-restore'].forEach(id => $(id).classList.remove('open'));
-  pendingRestore = null; lastFocus = null;
+  pendingRestore = null; restoreSrc = null; lastFocus = null;
   $('help-overlay').classList.add('hidden');
   dialogClose(false); hideToast();   // offene Rückfrage verfällt (Aufrufer sieht false), Toast samt „Rückgängig“ weg (v1.9)
   maskPasswordFields();
@@ -1280,10 +1320,19 @@ function showTabSilent(name) {
 }
 
 function lockApp() {
+  if (curRead) { const r = curRead.reader; curRead = null; try { r.abort(); } catch (_) { /* schon fertig */ } }   // nie im gesperrten Zustand fertig lesen
   window.LocalDB.lock();
   clearIdle();
   clearRendered();
   showAuth();
+}
+// Auto-Sperre: erst sperren, dann melden (clearRendered räumt den Toast). Wurde dabei ein Import zurückgestellt, sagt der Toast das (v1.11).
+// War das Restore-Modal schon offen (Datei vor der Sperre gelesen, Reihenfolge der Ereignisse nach dem Picker ist nicht garantiert), wird sein
+// Verweis ebenfalls zurückgestellt statt verworfen. Nur hier, nicht beim Sperren von Hand.
+function autoLock() {
+  const src = (pendingRestore && restoreSrc) || (curRead && curRead.fromSession && curRead.file) || null;   // offenes Modal oder laufende Lesung
+  lockApp();
+  if (src) deferFile(src); else showToast(I18N.t('toast.autolocked'));
 }
 
 // Enter-Taste in den Passwortfeldern
@@ -1299,7 +1348,7 @@ function resetIdle() {
   if (!window.LocalDB.isUnlocked()) return;
   const ms = autolockMs();
   if (!ms) return;
-  idleTimer = setTimeout(() => { lockApp(); showToast(I18N.t('toast.autolocked')); }, ms);   // erst sperren, dann melden (clearRendered räumt den Toast)
+  idleTimer = setTimeout(autoLock, ms);
 }
 ['click', 'keydown', 'touchstart', 'scroll', 'mousemove'].forEach(evt =>
   document.addEventListener(evt, () => { if (window.LocalDB.isUnlocked()) resetIdle(); }, { passive: true }));
@@ -1311,7 +1360,7 @@ document.addEventListener('visibilitychange', () => {
   if (document.hidden) { hiddenAt = Date.now(); return; }
   const away = hiddenAt ? Date.now() - hiddenAt : 0; hiddenAt = 0;
   const ms = autolockMs();
-  if (ms && away > ms) { lockApp(); showToast(I18N.t('toast.autolocked')); }
+  if (ms && away > ms) autoLock();
   else resetIdle();
 });
 
@@ -1359,14 +1408,31 @@ function enhancePasswordFields() {
     btn.setAttribute('aria-pressed', 'false');
     btn.dataset.showpass = inp.id;
     btn.addEventListener('mousedown', e => e.preventDefault());   // Fokus und Tastatur bleiben im Feld
-    btn.addEventListener('click', () => { setEye(btn, inp.type === 'password'); inp.focus(); });
+    // Tastaturweg (Tab aufs Auge, Enter): das Feld hat keinen Fokus, focus() holt die alte Markierung zurück — im Klartext aufs Ende ziehen (Audit v1.11 a1)
+    btn.addEventListener('click', () => { setEye(btn, inp.type === 'password'); inp.focus(); collapseRevealed(inp); });
+    inp.addEventListener('focus', () => collapseRevealed(inp));   // Tab in ein aufgedecktes Feld markiert alles (nur Anzeige; ohne Timer, der zerstörte schnelle Nutzermarkierungen, R2 #3)
     wrap.appendChild(btn);
   });
 }
+// Kit-Stand Alien Notes v1.6 / Sachwert-Tresor v3.7: Chromium setzt beim type-Wechsel die Auswahl auf 0, im Desktop-Browser nach
+// einem echten Mausklick sogar erst verspätet — darum sofort UND per setTimeout wiederherstellen, nur bei unverändertem Fokus/Typ/Wert.
+// Headless-Brave zeigt den Fehler nicht (Gerätetest im Desktop-Browser).
 function setEye(btn, on) {
-  const inp = $(btn.dataset.showpass); if (!inp) return;
-  inp.type = on ? 'text' : 'password';
   btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+  const f = $(btn.dataset.showpass); if (!f) return;
+  const keep = document.activeElement === f, s = f.selectionStart, e = f.selectionEnd, d = f.selectionDirection || 'none', v = f.value, ty = on ? 'text' : 'password';
+  // Beim Aufdecken eine Markierung nicht als Klartext-Markierung wiederherstellen (X11 legt markierten Text in PRIMARY) — Cursor ans Ende (Notes run-4 B-V1).
+  // Schon VOR dem Typwechsel zusammenziehen, sonst steht sie einen Takt lang markiert im Klartext (Audit v1.11 a4) — auch OHNE Fokus: beim
+  // Tastaturweg (Tab aufs Auge, Enter) stellt inp.focus() die gemerkte Markierung noch im Tastenereignis her, und Chromium legt sie dann
+  // sofort in PRIMARY (Audit v1.11 R2 F1). Ohne Fokus setzt das nur die gemerkte Auswahl, holt keinen Fokus.
+  const s2 = on && s !== e ? e : s;
+  if (s2 !== s) try { f.setSelectionRange(s2, e, d); } catch (_) {}
+  f.type = ty; if (!keep || s == null) return;
+  const put = () => { if (document.activeElement === f && f.type === ty && f.value === v) try { f.setSelectionRange(s2, e, d); } catch (_) {} };
+  put(); setTimeout(put, 0);
+}
+function collapseRevealed(f) {
+  if (f.type === 'text' && document.activeElement === f && f.selectionStart !== f.selectionEnd) try { f.setSelectionRange(f.selectionEnd, f.selectionEnd); } catch (_) {}
 }
 // Sperr-Hygiene: alle Augen zu, Felder maskiert (Sperren, Fehlversuch)
 function maskPasswordFields() {
@@ -1379,7 +1445,7 @@ function maskPasswordFields() {
 const ACTIONS = {
   setup: () => doSetup(),
   unlock: () => doUnlock(),
-  restore: () => $('restore-file').click(),
+  restore: pickRestore,
   lock: () => lockApp(),
   prevMonth: () => prevMonth(), nextMonth: () => nextMonth(),
   prevYear: () => prevYear(), nextYear: () => nextYear(),
