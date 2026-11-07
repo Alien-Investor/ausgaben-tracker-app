@@ -17,17 +17,41 @@
     en: ['Housing', 'Subscriptions', 'Groceries', 'Insurance', 'Transport', 'Leisure', 'Health', 'Other']
   };
   const FALLBACK_CATEGORY = { de: 'Sonstiges', en: 'Other' };
+  // Einnahmen (seit v1.12, nur einmalige): eigene Kategorienliste mit eigener Auffang-Kategorie. Namen bleiben über BEIDE
+  // Listen eindeutig (case-insensitiv) — Umbenennen/Löschen ziehen Einträge über den Namen nach und dürfen nie die falsche Liste treffen.
+  const DEFAULT_INCOME_CATEGORIES = {
+    de: ['Gehalt', 'Nebeneinkünfte', 'Erstattungen', 'Sonstige Einnahmen'],
+    en: ['Salary', 'Side income', 'Refunds', 'Other income']
+  };
+  const FALLBACK_INCOME = { de: 'Sonstige Einnahmen', en: 'Other income' };
+  const kindOf = k => k === 'income' ? 'income' : 'expense';   // alles außer 'income' ist eine Ausgabe (Altdaten ohne Feld)
+  const defaultsOf = kind => (kind === 'income' ? DEFAULT_INCOME_CATEGORIES : DEFAULT_CATEGORIES);
+  const fallbackOf = kind => (kind === 'income' ? FALLBACK_INCOME : FALLBACK_CATEGORY);
+  // ohne Rücksicht auf Groß-/Kleinschreibung, wie die Dubletten-Prüfung (R2: „sonstige einnahmen“ wurde sonst nicht erkannt)
+  const isFallbackName = (kind, n) => { const l = String(n).toLowerCase(); return l === fallbackOf(kind).de.toLowerCase() || l === fallbackOf(kind).en.toLowerCase(); };
+  // Tresor-Format: 2 seit v1.12 (Feld kind an Einträgen und Kategorien). Ein Tresor/Backup mit höherer Version stammt aus einer
+  // neueren App — ablehnen statt dessen unbekannte Felder still wegzuwerfen (so zeigte v1.11 Einnahmen als Ausgaben).
+  const VAULT_VERSION = 2;
   function currentLang() { return (window.I18N && window.I18N.lang === 'en') ? 'en' : 'de'; }
-  function fallbackCategory() {
-    // Bevorzugt eine vorhandene Auffang-Kategorie des Vaults (DE oder EN), sonst die der aktiven Sprache
-    const have = (VAULT && VAULT.categories || []).map(c => c.name);
-    return have.find(n => n === FALLBACK_CATEGORY.de || n === FALLBACK_CATEGORY.en) || FALLBACK_CATEGORY[currentLang()];
+  // Auffang-Name einer Art aus einer Kategorienliste: vorhandene Auffang-Kategorie derselben Art (DE oder EN), sonst der Sprach-Standard —
+  // aber nie ein Name, der der ANDEREN Art gehört (Review v1.12 N3), dann die erste Kategorie der eigenen Art.
+  function fallbackIn(cats, kind) {
+    kind = kindOf(kind);
+    const own = cats.filter(c => c.kind === kind).map(c => c.name);
+    const hit = own.find(n => isFallbackName(kind, n));
+    if (hit) return hit;
+    const std = fallbackOf(kind)[currentLang()];
+    const taken = cats.some(c => c.kind !== kind && c.name.toLowerCase() === std.toLowerCase());
+    return taken && own.length ? own[0] : std;
   }
-  // Wohin Einträge wandern, wenn Kategorie `excludeId` gelöscht wird: Auffang-Kategorie, sonst die erste verbleibende
+  function fallbackCategory(kind) { return fallbackIn((VAULT && VAULT.categories) || [], kind); }
+  // Wohin Einträge wandern, wenn Kategorie `excludeId` gelöscht wird: Auffang-Kategorie derselben Art, sonst die erste verbleibende dieser Art
   function deleteTarget(excludeId) {
-    const rest = VAULT.categories.filter(c => c.id !== excludeId);
-    const fb = rest.find(c => c.name === FALLBACK_CATEGORY.de || c.name === FALLBACK_CATEGORY.en);
-    return fb ? fb.name : (rest[0] ? rest[0].name : FALLBACK_CATEGORY[currentLang()]);
+    const src = VAULT.categories.find(c => c.id === excludeId);
+    const kind = src ? src.kind : 'expense';
+    const rest = VAULT.categories.filter(c => c.id !== excludeId && c.kind === kind);
+    const fb = rest.find(c => isFallbackName(kind, c.name));
+    return fb ? fb.name : (rest[0] ? rest[0].name : fallbackOf(kind)[currentLang()]);
   }
 
   // Einstellungen im Tresor (wandern mit dem Backup). autolock in Minuten, 0 = aus.
@@ -38,12 +62,16 @@
   let KEY = null, SALT = null, VAULT = null;
 
   function emptyVault(lang) {
+    const l = lang || currentLang();
     return {
-      version: 1,
-      expenses: [],
+      version: VAULT_VERSION,
+      expenses: [],      // Ausgaben UND Einnahmen (seit v1.12), unterschieden über kind
       fixedCosts: [],
       liabilities: [],   // Verbindlichkeiten (seit v1.6): offene Schulden/Zahlungen zum Abhaken
-      categories: DEFAULT_CATEGORIES[lang || currentLang()].map(name => ({ id: uuid(), name })),
+      categories: [
+        ...DEFAULT_CATEGORIES[l].map(name => ({ id: uuid(), name, kind: 'expense' })),
+        ...DEFAULT_INCOME_CATEGORIES[l].map(name => ({ id: uuid(), name, kind: 'income' }))
+      ],
       settings: Object.assign({}, SETTINGS_DEFAULT)
     };
   }
@@ -110,17 +138,50 @@
   // eine präparierte .vault kann so kein HTML/JS in Felder wie amount/date/id schmuggeln.
   function sanitizeVault(v) {
     if (!v || typeof v !== 'object') v = {};
+    // Number(): auch "3" oder [3] zählen als neuere Version; NaN (Müll) migriert wie ein Tresor ohne Angabe (Review v1.12, Hinweis).
+    // Ein präpariertes Objekt ohne Zahlwert ({toString:1,valueOf:1}) wirft in Number() — dann keine rohe englische Meldung, sondern err.badBackup (R2).
+    let ver; try { ver = Number(v.version); } catch (_) { throw new Error('err.badBackup'); }
+    if (ver > VAULT_VERSION) throw new Error('err.newerVault');
     const out = emptyVault();
-    const fb = FALLBACK_CATEGORY[currentLang()];
     // Doppelte IDs in einem Backup ließen die UI den falschen Datensatz bearbeiten/löschen
     // (Audit run-1 #5): jede Kollision bekommt eine frische UUID.
     const seenIds = new Set();
     const uniqueId = x => { let id = idStr(x); if (seenIds.has(id)) id = uuid(); seenIds.add(id); return id; };
     const amt = x => Math.min(Math.max(num(x), 0), AMOUNT_MAX);
-    out.expenses = (Array.isArray(v.expenses) ? v.expenses : []).filter(e => e && typeof e === 'object').map(e => ({
-      id: uniqueId(e.id), name: str(e.name, 200), amount: amt(e.amount),
-      category: str(e.category, 60).trim() || fb, date: dateOrNull(e.date) || todayISO(), note: str(e.note, 500)
-    }));
+    // Kategorien ZUERST (seit v1.12): die Auffang-Namen der Einträge hängen von den Listen ab.
+    // Name gekappt, id auf UUID-Zeichen (Altdaten ohne id bekommen eine), kind nur 'income'|'expense' (fehlt → Ausgabe),
+    // Dubletten (case-insensitiv, über BEIDE Arten) raus
+    const seen = new Set();
+    const cats = (Array.isArray(v.categories) ? v.categories : [])
+      .map(c => typeof c === 'string' ? { name: c } : c)
+      .filter(c => c && typeof c === 'object' && typeof c.name === 'string' && c.name.trim())
+      .map(c => ({ id: uniqueId(c.id), name: c.name.trim().slice(0, 60), kind: kindOf(c.kind) }))
+      .filter(c => { const k = c.name.toLowerCase(); if (seen.has(k)) return false; seen.add(k); return true; });
+    // Fehlt eine Art ganz (leerer Tresor, Tresor v1 ohne Einnahme-Kategorien), die Standardliste der aktiven Sprache ergänzen —
+    // Namen, die schon (in der anderen Art) vergeben sind, überspringen. Bleibt die Art trotzdem leer (alle Standardnamen belegt), eine
+    // Auffang-Kategorie mit Zähler anlegen: jede Art hat immer mindestens eine Kategorie (Review v1.12 N3). Die letzte Kategorie einer Art
+    // lässt sich nicht löschen, die Ergänzung greift also nur bei der Migration.
+    ['expense', 'income'].forEach(kind => {
+      if (cats.some(c => c.kind === kind)) return;
+      defaultsOf(kind)[currentLang()].forEach(name => {
+        const k = name.toLowerCase();
+        if (!seen.has(k)) { seen.add(k); cats.push({ id: uniqueId(), name, kind }); }
+      });
+      if (cats.some(c => c.kind === kind)) return;
+      const base = fallbackOf(kind)[currentLang()];
+      let i = 2; while (seen.has((base + ' ' + i).toLowerCase())) i++;
+      seen.add((base + ' ' + i).toLowerCase()); cats.push({ id: uniqueId(), name: base + ' ' + i, kind });
+    });
+    out.categories = cats;
+    const fb = fallbackIn(cats, 'expense'), fbInc = fallbackIn(cats, 'income');
+    // kind fehlt (Tresor v1) oder unbekannt → Ausgabe; nie eine Einnahme raten
+    out.expenses = (Array.isArray(v.expenses) ? v.expenses : []).filter(e => e && typeof e === 'object').map(e => {
+      const kind = kindOf(e.kind);
+      return {
+        id: uniqueId(e.id), kind, name: str(e.name, 200), amount: amt(e.amount),
+        category: str(e.category, 60).trim() || (kind === 'income' ? fbInc : fb), date: dateOrNull(e.date) || todayISO(), note: str(e.note, 500)
+      };
+    });
     out.fixedCosts = (Array.isArray(v.fixedCosts) ? v.fixedCosts : []).filter(f => f && typeof f === 'object').map(f => {
       const active = f.active !== false;
       return {
@@ -142,14 +203,6 @@
       done: l.done === true, doneAt: l.done === true ? dateOrNull(l.doneAt) : null,
       createdAt: dateOrNull(l.createdAt) || todayISO()
     }));
-    // Kategorien: Name gekappt, id auf UUID-Zeichen (Altdaten ohne id bekommen eine), Dubletten (case-insensitiv) raus
-    const seen = new Set();
-    const cats = (Array.isArray(v.categories) ? v.categories : [])
-      .map(c => typeof c === 'string' ? { name: c } : c)
-      .filter(c => c && typeof c === 'object' && typeof c.name === 'string' && c.name.trim())
-      .map(c => ({ id: uniqueId(c.id), name: c.name.trim().slice(0, 60) }))
-      .filter(c => { const k = c.name.toLowerCase(); if (seen.has(k)) return false; seen.add(k); return true; });
-    out.categories = cats.length ? cats : out.categories;
     // Einstellungen: nur bekannte Felder, nur erlaubte Werte. Strikt Zahl — Number(null) wäre 0 = „Aus"
     // (Audit run-1 #7).
     const s = (v.settings && typeof v.settings === 'object') ? v.settings : {};
@@ -253,9 +306,13 @@
   function variableTotalForMonth(expenses, year, month) {
     return expenses.filter(e => inMonth(e, year, month)).reduce((sum, e) => sum + e.amount, 0);
   }
+  // Einnahmen (v1.12) liegen mit in VAULT.expenses. Alle Ausgaben-Summen (Gesamt, Variabel, Vormonat, „Nach Kategorie“) sehen NUR die Ausgaben.
+  const isIncome = e => e.kind === 'income';
+  const outgoings = () => VAULT.expenses.filter(e => !isIncome(e));
+  const incomings = () => VAULT.expenses.filter(isIncome);
 
   function dashboard(qYear, qMonth) {
-    const fixedCosts = VAULT.fixedCosts, expenses = VAULT.expenses;
+    const fixedCosts = VAULT.fixedCosts, expenses = outgoings(), incomes = incomings();
     const now = new Date();
     const year = qYear || now.getFullYear();
     const month = qMonth || (now.getMonth() + 1);
@@ -272,6 +329,8 @@
     const prevTotal = fixedTotalForMonth(fixedCosts, prevYearMonth) + variableTotalForMonth(expenses, prevYear, prevMonth);
 
     const currentExpenses = expenses.filter(e => inMonth(e, year, month)).sort(byDateDesc);
+    const currentIncomes = incomes.filter(e => inMonth(e, year, month)).sort(byDateDesc);
+    const incomeTotal = variableTotalForMonth(incomes, year, month);
     const activeFixed = fixedCosts.filter(fc => isFixedActiveForMonth(fc, yearMonth)).sort((a, b) => b.amount - a.amount);
 
     return {
@@ -279,23 +338,33 @@
       fixed_total: fixedTotal, variable_total: variableTotal, total,
       prev_total: prevTotal,
       delta_pct: prevTotal > 0 ? ((total - prevTotal) / prevTotal * 100) : null,
-      active_fixed_costs: activeFixed, current_expenses: currentExpenses
+      active_fixed_costs: activeFixed, current_expenses: currentExpenses,
+      // Bilanz (v1.12): has_income = irgendeine Einnahme im Tresor → Bilanz-Karte und Einnahmen-Abschnitt sichtbar (auch in Monaten mit 0 €)
+      has_income: incomes.length > 0, current_incomes: currentIncomes,
+      income_total: incomeTotal, balance: incomeTotal - total
     };
   }
 
   function annual(qYear) {
-    const fixedCosts = VAULT.fixedCosts, expenses = VAULT.expenses;
+    const fixedCosts = VAULT.fixedCosts, expenses = outgoings(), incomes = incomings();
     const year = qYear || new Date().getFullYear();
     const months = Array.from({ length: 12 }, (_, i) => {
       const m = i + 1;
       const yearMonth = `${year}-${String(m).padStart(2, '0')}`;
       const fixedTotal = fixedTotalForMonth(fixedCosts, yearMonth);
       const variableTotal = variableTotalForMonth(expenses, year, m);
-      return { month: m, yearMonth, fixed_total: fixedTotal, variable_total: variableTotal, total: fixedTotal + variableTotal };
+      const incomeTotal = variableTotalForMonth(incomes, year, m);
+      const total = fixedTotal + variableTotal;
+      return { month: m, yearMonth, fixed_total: fixedTotal, variable_total: variableTotal, total, income_total: incomeTotal, balance: incomeTotal - total };
     });
     const yearFixed = months.reduce((s, m) => s + m.fixed_total, 0);
     const yearVariable = months.reduce((s, m) => s + m.variable_total, 0);
-    return { year, months, year_fixed: yearFixed, year_variable: yearVariable, year_total: yearFixed + yearVariable };
+    // Keine Jahres-Bilanzsumme hier: im laufenden Jahr zählen Fixkosten auch künftige Monate (Projektion), Einnahmen nicht —
+    // die Bilanz summiert app.js deshalb nur bis zum aktuellen Monat (Review v1.12 M1)
+    return {
+      year, months, year_fixed: yearFixed, year_variable: yearVariable, year_total: yearFixed + yearVariable,
+      has_income: incomes.length > 0
+    };
   }
 
   function csvRows(rows) {
@@ -305,18 +374,20 @@
     return rows.map(r => r.map(cell).join(',')).join('\r\n');
   }
 
-  // CSV-Export (variable Ausgaben + amortisierte Fixkosten). Liefert {filename, content}.
+  // CSV-Export (variable Ausgaben, Einnahmen + amortisierte Fixkosten). Liefert {filename, content}.
+  // Spalte „Art“ (v1.12) direkt nach dem Betrag: Ausgabe | Einnahme — Beträge bleiben positiv, die Art sagt die Richtung.
   function csvExport(year, month) {
     year = year ? parseInt(year) : null;
     month = month ? parseInt(month) : null;
     const fixedCosts = VAULT.fixedCosts, expenses = VAULT.expenses;
-    const rows = [['Datum', 'Name', 'Kategorie', 'Betrag (EUR)', 'Typ', 'Notiz']];
+    const rows = [['Datum', 'Name', 'Kategorie', 'Betrag (EUR)', 'Art', 'Typ', 'Notiz']];
 
     let filtered = expenses.slice();
     if (year && month) filtered = filtered.filter(e => inMonth(e, year, month));
     else if (year) filtered = filtered.filter(e => inYear(e, year));
     filtered.sort((a, b) => byDateDesc(b, a));
-    filtered.forEach(e => rows.push([e.date, e.name, e.category, e.amount.toFixed(2), 'Variabel', e.note || '']));
+    filtered.forEach(e => rows.push([e.date, e.name, e.category, e.amount.toFixed(2),
+      isIncome(e) ? 'Einnahme' : 'Ausgabe', isIncome(e) ? 'Einmalig' : 'Variabel', e.note || '']));
 
     if (year) {
       const targetMonths = month ? [month] : Array.from({ length: 12 }, (_, i) => i + 1);
@@ -326,7 +397,7 @@
         fixedCosts.filter(fc => isFixedActiveForMonth(fc, yearMonth)).forEach(fc => {
           const monthly = monthlyAmount(fc);
           const typ = fc.period === 'yearly' ? 'Fixkosten (jährl./12)' : 'Fixkosten (monatl.)';
-          rows.push([date, fc.name, fc.category, monthly.toFixed(2), typ, fc.note || '']);
+          rows.push([date, fc.name, fc.category, monthly.toFixed(2), 'Ausgabe', typ, fc.note || '']);
         });
       });
     }
@@ -400,19 +471,27 @@
     if (res === 'categories') {
       const catName = x => String(x || '').trim().slice(0, 60);
       const exists = (name, exceptId) => VAULT.categories.find(c => c.id !== exceptId && c.name.toLowerCase() === name.toLowerCase());
-      const retag = (from, to) => { [VAULT.expenses, VAULT.fixedCosts].forEach(arr => arr.forEach(e => { if (e.category === from) e.category = to; })); };
-      // Zielkategorie beim Löschen — EINE Quelle für Route und Rückfrage-Dialog (Audit run-1 #9)
+      // Umhängen nur innerhalb DERSELBEN Art (Review v1.12 N2): ein Eintrag mit verwaistem Namen der anderen Art bleibt, wo er ist.
+      // Fixkosten sind immer Ausgaben.
+      const retag = (from, to, kind) => {
+        VAULT.expenses.forEach(e => { if (e.category === from && kindOf(e.kind) === kind) e.category = to; });
+        if (kind === 'expense') VAULT.fixedCosts.forEach(e => { if (e.category === from) e.category = to; });
+      };
+      const lastOfKind = c => VAULT.categories.filter(x => x.kind === c.kind).length <= 1;
+      // Zielkategorie beim Löschen — EINE Quelle für Route und Rückfrage-Dialog (Audit run-1 #9); die letzte Kategorie einer Art
+      // meldet schon hier err.lastCategory, damit der Dialog kein Ziel nennt, das es nicht gibt (Review v1.12 N4)
       if (method === 'GET' && id === 'delete-target') {
         const src = VAULT.categories.find(c => c.id === query.id);
         if (!src) err('err.notFound');
+        if (lastOfKind(src)) err('err.lastCategory');
         return { target: deleteTarget(query.id) };
       }
       if (method === 'GET') return VAULT.categories.map(c => Object.assign({}, c));
       if (method === 'POST') {
         const name = catName(body && body.name);
         if (!name) err('err.required');
-        if (exists(name)) err('err.catExists');
-        const entry = { id: uuid(), name };
+        if (exists(name)) err('err.catExists');   // über beide Arten: ein Name gehört genau einer Liste
+        const entry = { id: uuid(), name, kind: kindOf(body && body.kind) };
         VAULT.categories.push(entry); await persist(); return Object.assign({}, entry);
       }
       const idx = VAULT.categories.findIndex(c => c.id === id);
@@ -423,16 +502,17 @@
         if (exists(name, id)) err('err.catExists');
         const old = VAULT.categories[idx].name;
         VAULT.categories[idx].name = name;
-        if (old !== name) retag(old, name);
+        if (old !== name) retag(old, name, VAULT.categories[idx].kind);
         await persist(); return Object.assign({}, VAULT.categories[idx]);
       }
       if (method === 'DELETE') {
         if (idx === -1) err('err.notFound');
-        if (VAULT.categories.length <= 1) err('err.lastCategory');
+        const kind = VAULT.categories[idx].kind;   // die letzte Kategorie JEDER Art bleibt (Formular und Auffang brauchen eine)
+        if (lastOfKind(VAULT.categories[idx])) err('err.lastCategory');
         const old = VAULT.categories[idx].name;
         const target = deleteTarget(id);
         VAULT.categories.splice(idx, 1);
-        retag(old, target);
+        retag(old, target, kind);
         await persist(); return { target };
       }
     }
@@ -466,8 +546,12 @@
         if (idx === -1) err('err.notFound');
         const fc = VAULT.fixedCosts[idx];
         const { name, amount, period, category, note, since, usage, active } = body || {};
-        if (name !== undefined) { const n = str(name, 200).trim(); if (!n) err('err.required'); fc.name = n; }
-        if (amount !== undefined) fc.amount = routeAmount(amount);
+        // Erst prüfen, dann ändern: ein abgelehnter Betrag ließ den neuen Namen sonst im RAM stehen (Review v1.12 N6)
+        const n = name !== undefined ? str(name, 200).trim() : null;
+        if (name !== undefined && !n) err('err.required');
+        const a = amount !== undefined ? routeAmount(amount) : null;
+        if (name !== undefined) fc.name = n;
+        if (amount !== undefined) fc.amount = a;
         if (period !== undefined) fc.period = period === 'yearly' ? 'yearly' : 'monthly';
         if (category !== undefined) fc.category = str(category, 60).trim() || fallbackCategory();
         if (note !== undefined) fc.note = str(note, 500);
@@ -516,8 +600,10 @@
         if (idx === -1) err('err.notFound');
         const l = VAULT.liabilities[idx];
         const { name, amount, due, note, done } = body || {};
+        const a = amount !== undefined ? amt(amount) : null;   // erst prüfen, dann ändern (Review v1.12 N6)
+        if (amount !== undefined && a === null) err('err.badAmount');
         if (name !== undefined) l.name = String(name).trim().slice(0, 200);
-        if (amount !== undefined) { const a = amt(amount); if (a === null) err('err.badAmount'); l.amount = a; }
+        if (amount !== undefined) l.amount = a;
         if (due !== undefined) l.due = dateOrNull(due);
         if (note !== undefined) l.note = String(note || '').slice(0, 500);
         if (done !== undefined) {
@@ -551,20 +637,23 @@
         const eid = idStr(src.id);
         if (VAULT.expenses.some(e => e.id === eid)) err('err.undoGone');
         // Name wie im Sanitizer (leer erlaubt — Altbestände/Backups können namenlose Einträge tragen, Review v1.9)
+        const kind = kindOf(src.kind);
         const entry = {
-          id: eid, name: str(src.name, 200).trim(), amount: routeAmount(src.amount),
-          category: str(src.category, 60).trim() || fallbackCategory(), date: dateOrNull(src.date) || todayISO(), note: str(src.note, 500)
+          id: eid, kind, name: str(src.name, 200).trim(), amount: routeAmount(src.amount),
+          category: str(src.category, 60).trim() || fallbackCategory(kind), date: dateOrNull(src.date) || todayISO(), note: str(src.note, 500)
         };
         const at = Math.min(Math.max(Math.trunc(num(body.index)), 0), VAULT.expenses.length);
         VAULT.expenses.splice(at, 0, entry); await persist(); return entry;
       }
+      // kind (v1.12): 'income' = Einnahme, alles andere = Ausgabe. Betrag bleibt positiv (routeAmount), die Art trägt die Richtung.
       if (method === 'POST') {
         const { name, amount, category, date, note } = body || {};
+        const kind = kindOf(body && body.kind);
         const n = str(name, 200).trim();
         if (!n || amount === undefined) err('err.required');
         const entry = {
-          id: uuid(), name: n, amount: routeAmount(amount),
-          category: str(category, 60).trim() || fallbackCategory(), date: dateOrNull(date) || todayISO(), note: str(note, 500)
+          id: uuid(), kind, name: n, amount: routeAmount(amount),
+          category: str(category, 60).trim() || fallbackCategory(kind), date: dateOrNull(date) || todayISO(), note: str(note, 500)
         };
         VAULT.expenses.push(entry); await persist(); return entry;
       }
@@ -572,10 +661,15 @@
       if (method === 'PATCH') {
         if (idx === -1) err('err.notFound');
         const e = VAULT.expenses[idx];
-        const { name, amount, category, date, note } = body || {};
-        if (name !== undefined) { const n = str(name, 200).trim(); if (!n) err('err.required'); e.name = n; }
-        if (amount !== undefined) e.amount = routeAmount(amount);
-        if (category !== undefined) e.category = str(category, 60).trim() || fallbackCategory();
+        const { name, amount, category, date, note, kind } = body || {};
+        // Erst prüfen, dann ändern (Review v1.12 N6)
+        const n = name !== undefined ? str(name, 200).trim() : null;
+        if (name !== undefined && !n) err('err.required');
+        const a = amount !== undefined ? routeAmount(amount) : null;
+        if (name !== undefined) e.name = n;
+        if (amount !== undefined) e.amount = a;
+        if (kind !== undefined) e.kind = kindOf(kind);
+        if (category !== undefined) e.category = str(category, 60).trim() || fallbackCategory(e.kind);
         if (date !== undefined) e.date = dateOrNull(date) || e.date;
         if (note !== undefined) e.note = str(note, 500);
         await persist(); return e;

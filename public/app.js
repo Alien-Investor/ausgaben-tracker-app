@@ -1,12 +1,14 @@
 'use strict';
 // app.js — UI-Logik des Ausgaben-Trackers. Klassisches Skript (keine Module): die Funktionen sind
 // global, damit die E2E-Suiten (verify-*.mjs) sie direkt aufrufen können.
-const APP_VERSION = '1.11';   // Anzeige in den Einstellungen; muss VERSION_NAME in apk/VERSION entsprechen (build-www.sh setzt es aus VERSION, check-version.mjs prüft es)
+const APP_VERSION = '1.12';   // Anzeige in den Einstellungen; muss VERSION_NAME in apk/VERSION entsprechen (build-www.sh setzt es aus VERSION, check-version.mjs prüft es)
 
 const monthName = (i) => I18N.monthName(i);        // lokalisierter Monatsname (Januar / January)
 const monthShort = (i) => I18N.monthName(i, true); // kurz (Jan)
 
-const today = new Date();
+// „Heute“ wird beim Entsperren (init) und beim Zurückkehren in die App (visibilitychange) neu gesetzt: die APK läuft tagelang,
+// ein beim Start festgelegtes Datum ließ Übersicht und Jahr nach einem Monatswechsel im alten Monat stehen (Review v1.12 R2 M-1)
+let today = new Date();
 let dashYear = today.getFullYear();
 let dashMonth = today.getMonth() + 1;
 let annualYear = today.getFullYear();
@@ -17,6 +19,12 @@ let editingFixedId = null;
 let selectedPeriod = 'monthly';
 let editingLiabId = null;
 let pendingLiabId = null;   // Verbindlichkeit, die nach dem Speichern der Ausgabe abgehakt wird
+let expKind = 'expense';    // Art im Ausgaben-Modal (v1.12): 'expense' | 'income'
+// Kategorie je Art (v1.12): kindCat = zuletzt GESPEICHERTE Kategorie (bleibt zwischen zwei Einträgen stehen; bis v1.11 blieb sogar eine nur
+// gewählte, abgebrochene Auswahl stehen, weil das Formular das Auswahlfeld nie zurücksetzte),
+// sessCat = Wahl im offenen Formular (Hin- und Rückwechsel der Art verliert nichts, auch keine verwaiste Kategorie). Beides Nutzerdaten → clearRendered.
+let kindCat = { expense: '', income: '' };
+let sessCat = {};
 let dashData = null;        // letzte Monatsdaten (für Filter ohne erneutes Laden)
 let searchQ = '';           // Suchtext der Übersicht (nur im RAM)
 let catFilter = new Set();  // gewählte Kategorie-Chips (leer = alle)
@@ -119,17 +127,25 @@ async function loadSettings() {
   try { settings = await apiFetch('GET', '/api/settings'); } catch (e) { settings = { autolock: 5 }; }
 }
 
+// Zwei Kategorienlisten seit v1.12: Ausgaben (auch Fixkosten) und Einnahmen. kind fehlt nie (Sanitizer), trotzdem defensiv.
+const catsOf = (kind) => categories.filter(c => (c.kind === 'income' ? 'income' : 'expense') === kind);
+const catOpts = (kind) => catsOf(kind).map(c => `<option value="${escapeHtml(c.name)}">${escapeHtml(c.name)}</option>`).join('');
 function populateCategorySelects() {
-  const opts = categories.map(c => `<option value="${escapeHtml(c.name)}">${escapeHtml(c.name)}</option>`).join('');
-  $('exp-category').innerHTML = opts;
-  $('fc-category').innerHTML = opts;
-  // Export year
-  const curYear = today.getFullYear();
+  $('exp-category').innerHTML = catOpts(expKind);
+  $('fc-category').innerHTML = catOpts('expense');
+  ['exp-category', 'fc-category'].forEach(syncCombo);
+  populateExportYears();
+  populateExportMonths();
+}
+// Export-Jahre: laufendes Jahr + fünf zurück; Auswahl bleibt erhalten. Auch beim Jahreswechsel aus followToday (R3 N2) — dort NICHT
+// populateCategorySelects, das baut exp-category neu und zerstört im offenen Formular die Wahl (sessCat, verwaiste Option).
+function populateExportYears() {
+  const sel = $('export-year'), prev = sel.value, curYear = today.getFullYear();
   let yearOpts = '';
   for (let y = curYear; y >= curYear - 5; y--) yearOpts += `<option value="${y}">${y}</option>`;
-  $('export-year').innerHTML = yearOpts;
-  ['exp-category', 'fc-category', 'export-year'].forEach(syncCombo);
-  populateExportMonths();
+  sel.innerHTML = yearOpts;
+  if (prev && [...sel.options].some(o => o.value === prev)) sel.value = prev;
+  syncCombo('export-year');
 }
 
 // Monats-Dropdown im Export-Tab lokalisiert befüllen (Auswahl bleibt erhalten)
@@ -145,6 +161,7 @@ function populateExportMonths() {
 
 // --- Tab switching ---
 function showTab(name) {
+  followToday(false);   // Tagwechsel im Vordergrund: Tab rendert mit frischem Datum (R3 N3)
   document.querySelectorAll('.nav-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === name));
   document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('visible'));
   $('tab-' + name).classList.add('visible');
@@ -160,10 +177,12 @@ document.querySelector('.tabs').addEventListener('click', e => {
 });
 
 // --- DASHBOARD ---
+// Monatsnummer (Jahr*12+Monat) — „Folgemonat“ ist gesperrt ab dem laufenden Monat, nicht nur GENAU dort (Uhr zurückgestellt, R3 H4)
+const ymNum = (y, m) => y * 12 + m;
+const atOrAfterNow = () => ymNum(dashYear, dashMonth) >= ymNum(today.getFullYear(), today.getMonth() + 1);
 function updateMonthLabel() {
-  const isCurrentMonth = dashYear === today.getFullYear() && dashMonth === today.getMonth() + 1;
   $('month-label').innerHTML = `${escapeHtml(monthName(dashMonth - 1))} <span class="year-hint">${dashYear}</span>`;
-  $('btn-next-month').disabled = isCurrentMonth;
+  $('btn-next-month').disabled = atOrAfterNow();
 }
 
 function prevMonth() {
@@ -174,8 +193,7 @@ function prevMonth() {
 }
 
 function nextMonth() {
-  const isCurrentMonth = dashYear === today.getFullYear() && dashMonth === today.getMonth() + 1;
-  if (isCurrentMonth) return;
+  if (followToday(true) || atOrAfterNow()) return;   // erst Datum nachziehen (rückt die Ansicht ggf. selbst vor)
   dashMonth++;
   if (dashMonth > 12) { dashMonth = 1; dashYear++; }
   updateMonthLabel();
@@ -195,8 +213,34 @@ async function loadDashboard() {
 
 const monthlyOf = (fc) => fc.period === 'yearly' ? fc.amount / 12 : fc.amount;
 
+// Bilanz (v1.12): Saldo mit Vorzeichen (typografisches Minus), Sparquote = Saldo / Einnahmen, nur bei Einnahmen > 0.
+// Vorzeichen, Orange und Quote aus dem auf Cent GERUNDETEN Saldo — sonst „−0,00 €“ in Orange bei 1,4e-14 (Review v1.12 N5)
+const cents = (n) => { n = Number(n); return isFinite(n) ? Math.round(n * 100) / 100 : 0; };
+const isNeg = (n) => cents(n) < 0;
+function signedEur(n) { n = cents(n); return (n > 0 ? '+' : n < 0 ? '−' : '') + eur(Math.abs(n)); }
+function savingsRate(income, balance) {
+  income = cents(income); balance = cents(balance);
+  if (!(income > 0)) return null;
+  const p = Math.round(balance / income * 100);
+  return p < 0 ? '−' + Math.abs(p) : String(p);
+}
+function balanceCardHtml(title, income, expenses, balance) {
+  const rate = savingsRate(income, balance), neg = isNeg(balance) ? ' bal-neg' : '';
+  return `
+    <div class="card balance-card">
+      <h2>${escapeHtml(title)}</h2>
+      <div class="bal-row"><span class="bal-label">${I18N.t('dash.income')}</span><span class="bal-val">${eur(income)}</span></div>
+      <div class="bal-row"><span class="bal-label">${I18N.t('dash.expenses')}</span><span class="bal-val">${eur(expenses)}</span></div>
+      <div class="bal-row bal-sum"><span class="bal-label">${I18N.t('dash.balance')}</span><span class="bal-val${neg}">${signedEur(balance)}</span></div>
+      ${rate !== null ? `<div class="bal-rate${neg}">${escapeHtml(I18N.t('dash.savingsRate', { p: rate }))}</div>` : ''}
+    </div>`;
+}
+
 function renderDashboard(data) {
   dashData = data;
+  // Bilanz-Karte erst, wenn der Tresor überhaupt Einnahmen kennt — ohne Einnahmen sieht die Übersicht aus wie bis v1.11
+  $('dash-balance').innerHTML = data.has_income
+    ? balanceCardHtml(I18N.t('dash.balanceTitle', { m: monthName(data.month - 1) }), data.income_total, data.total, data.balance) : '';
   // Summary cards
   let deltaHtml = '—';
   if (data.delta_pct !== null) {
@@ -245,8 +289,10 @@ function renderDashboard(data) {
       </div>
     </div>` : '';
 
-  // Kategorie-Chips: nur Kategorien mit Einträgen im Monat; gewählte Chips bleiben, wenn noch vorhanden
-  const present = [...sums.keys()].sort((a, b) => a.localeCompare(b, I18N.locale()));
+  // Kategorie-Chips: nur Kategorien mit Einträgen im Monat (auch Einnahmen, v1.12); gewählte Chips bleiben, wenn noch vorhanden
+  const chipCats = new Set(sums.keys());
+  (data.current_incomes || []).forEach(e => chipCats.add(e.category));
+  const present = [...chipCats].sort((a, b) => a.localeCompare(b, I18N.locale()));
   catFilter = new Set([...catFilter].filter(c => present.includes(c)));
   $('dash-chips').innerHTML = present.length ? [
     `<button class="chip ${catFilter.size ? '' : 'on'}" data-action="chipAll">${I18N.t('dash.filterAll')}</button>`,
@@ -265,6 +311,8 @@ function renderDashboardList() {
     (!q || norm(e.name).includes(q) || norm(e.note).includes(q) || norm(e.category).includes(q));
   const fixed = data.active_fixed_costs.filter(match);
   const exps = data.current_expenses.filter(match);
+  const incomes = data.current_incomes || [];
+  const incs = incomes.filter(match);
   const filtering = q || catFilter.size;
 
   let fixedHtml = '';
@@ -298,14 +346,13 @@ function renderDashboardList() {
     }).join('');
   }
 
-  let expHtml = '';
-  if (data.current_expenses.length === 0) {
-    expHtml = `<div class="empty-state">${ICON.svg('coins', 'lg')}<div>${I18N.t('dash.emptyExpense')}</div></div>`;
-  } else if (exps.length === 0) {
-    expHtml = `<div class="empty-state">${I18N.t('dash.noMatch')}</div>`;
-  } else {
-    expHtml = exps.map(e => `
-      <div class="expense-item">
+  // Ausgabe und Einnahme (v1.12) teilen das Zeilen-Markup; Einnahmen tragen „+“ und eigene Knopf-Titel
+  const entryHtml = (e) => {
+    const inc = e.kind === 'income';
+    const editT = escapeHtml(I18N.t(inc ? 'modal.incomeEdit' : 'modal.expenseEdit'));
+    const delT = escapeHtml(I18N.t(inc ? 'confirm.delIncome' : 'confirm.delExpense'));
+    return `
+      <div class="expense-item${inc ? ' income-item' : ''}">
         <div class="item-left">
           <div class="item-name">${escapeHtml(e.name)}</div>
           <div class="item-meta">
@@ -315,20 +362,37 @@ function renderDashboardList() {
           </div>
         </div>
         <div class="item-right">
-          <div class="item-amount">${eur(e.amount)}</div>
+          <div class="item-amount${inc ? ' inc' : ''}">${inc ? '+' : ''}${eur(e.amount)}</div>
           <div class="item-actions">
-            <button class="action-btn" data-action="openExpense" data-id="${escapeHtml(e.id)}" title="${escapeHtml(I18N.t('modal.expenseEdit'))}" aria-label="${escapeHtml(I18N.t('modal.expenseEdit'))}">${ICON.svg('edit')}</button>
-            <button class="action-btn danger" data-action="deleteExpense" data-id="${escapeHtml(e.id)}" title="${escapeHtml(I18N.t('confirm.delExpense'))}" aria-label="${escapeHtml(I18N.t('confirm.delExpense'))}">${ICON.svg('trash')}</button>
+            <button class="action-btn" data-action="openExpense" data-id="${escapeHtml(e.id)}" title="${editT}" aria-label="${editT}">${ICON.svg('edit')}</button>
+            <button class="action-btn danger" data-action="deleteExpense" data-id="${escapeHtml(e.id)}" title="${delT}" aria-label="${delT}">${ICON.svg('trash')}</button>
           </div>
         </div>
-      </div>`).join('');
+      </div>`;
+  };
+
+  let expHtml = '';
+  if (data.current_expenses.length === 0) {
+    expHtml = `<div class="empty-state">${ICON.svg('coins', 'lg')}<div>${I18N.t('dash.emptyExpense')}</div></div>`;
+  } else if (exps.length === 0) {
+    expHtml = `<div class="empty-state">${I18N.t('dash.noMatch')}</div>`;
+  } else {
+    expHtml = exps.map(entryHtml).join('');
+  }
+
+  let incHtml = '';
+  if (data.has_income) {
+    if (incomes.length === 0) incHtml = `<div class="empty-state">${ICON.svg('coins', 'lg')}<div>${I18N.t('dash.emptyIncome')}</div></div>`;
+    else if (incs.length === 0) incHtml = `<div class="empty-state">${I18N.t('dash.noMatch')}</div>`;
+    else incHtml = incs.map(entryHtml).join('');
   }
 
   const fixedSum = fixed.reduce((s, fc) => s + monthlyOf(fc), 0);
   const expSum = exps.reduce((s, e) => s + Number(e.amount || 0), 0);
-  const total = data.active_fixed_costs.length + data.current_expenses.length;
+  const incSum = incs.reduce((s, e) => s + Number(e.amount || 0), 0);
+  const total = data.active_fixed_costs.length + data.current_expenses.length + incomes.length;
   $('dashboard-content').innerHTML = `
-    ${filtering ? `<div class="muted" style="margin-bottom:4px">${I18N.t('dash.filtered', { n: fixed.length + exps.length, total })}</div>` : ''}
+    ${filtering ? `<div class="muted" style="margin-bottom:4px">${I18N.t('dash.filtered', { n: fixed.length + exps.length + incs.length, total })}</div>` : ''}
     <div class="section-hd">
       <h2>${I18N.t('dash.sectionFixed')}</h2>
       <span class="section-total">${eur(filtering ? fixedSum : data.fixed_total)}</span>
@@ -339,6 +403,12 @@ function renderDashboardList() {
       <span class="section-total">${eur(filtering ? expSum : data.variable_total)}</span>
     </div>
     <div class="item-list">${expHtml}</div>
+    ${data.has_income ? `
+    <div class="section-hd" style="margin-top:24px">
+      <h2>${I18N.t('dash.sectionIncome')}</h2>
+      <span class="section-total inc">+${eur(filtering ? incSum : data.income_total)}</span>
+    </div>
+    <div class="item-list">${incHtml}</div>` : ''}
   `;
 }
 
@@ -362,7 +432,7 @@ $('dash-search').addEventListener('input', e => { searchQ = e.target.value; rend
 // --- ANNUAL ---
 function prevYear() { annualYear--; loadAnnual(); }
 function nextYear() {
-  if (annualYear >= today.getFullYear()) return;
+  if (followToday(true) || annualYear >= today.getFullYear()) return;
   annualYear++;
   loadAnnual();
 }
@@ -380,7 +450,8 @@ async function loadAnnual() {
 }
 
 function renderAnnual(data) {
-  const curYearMonth = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
+  const nowD = new Date();   // echtes Datum, nicht das gemerkte — „künftig“ darf nie einen schon begonnenen Monat treffen
+  const curYearMonth = `${nowD.getFullYear()}-${String(nowD.getMonth() + 1).padStart(2, '0')}`;
   const dash = '<span class="dash">—</span>';
   const rows = data.months.map(m => {
     const isCurrent = m.yearMonth === curYearMonth;
@@ -420,6 +491,53 @@ function renderAnnual(data) {
       </table>
     </div>
   `;
+
+  // Bilanz-Tabelle (v1.12) als eigene Karte statt zwei weiterer Spalten — sechs Betragsspalten passen bei 360 px nicht nebeneinander.
+  // Nur wenn der Tresor Einnahmen kennt; Monate ganz ohne Bewegung zeigen „—“. Künftige Monate bleiben leer und zählen nicht mit: die
+  // Ausgaben-Tabelle rechnet dort Fixkosten als Projektion, Einnahmen gibt es noch keine — der Saldo wäre sonst stark negativ (Review v1.12 M1).
+  // Im laufenden Jahr heißt die Summenzeile darum „Bis heute“.
+  if (!data.has_income) { $('annual-balance').innerHTML = ''; return; }
+  const sofar = data.months.filter(m => m.yearMonth <= curYearMonth);
+  const yInc = sofar.reduce((s, m) => s + m.income_total, 0), yOut = sofar.reduce((s, m) => s + m.total, 0), yBal = yInc - yOut;
+  const balRows = data.months.map(m => {
+    const future = m.yearMonth > curYearMonth;
+    const cls = m.yearMonth === curYearMonth ? 'current-month' : (future ? 'future-month' : '');
+    const any = !future && (m.income_total > 0 || m.total > 0);
+    return `
+      <tr class="${cls}">
+        <td class="month-name">${escapeHtml(monthName(m.month - 1))}</td>
+        <td>${!future && m.income_total > 0 ? eur(m.income_total) : dash}</td>
+        <td>${!future && m.total > 0 ? eur(m.total) : dash}</td>
+        <td class="col-total${any && isNeg(m.balance) ? ' bal-neg' : ''}">${any ? signedEur(m.balance) : dash}</td>
+      </tr>`;
+  }).join('');
+  const rate = savingsRate(yInc, yBal), negY = isNeg(yBal) ? 'bal-neg' : '';
+  $('annual-balance').innerHTML = `
+    <div class="card">
+      <h2>${escapeHtml(I18N.t('annual.balanceTitle', { year: data.year }))}</h2>
+      <div class="annual-wrap">
+        <table class="annual-table balance-table">
+          <thead>
+            <tr>
+              <th>${I18N.t('annual.month')}</th>
+              <th>${I18N.t('annual.income')}</th>
+              <th>${I18N.t('annual.expenses')}</th>
+              <th>${I18N.t('annual.balance')}</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${balRows}
+            <tr class="total-row">
+              <td>${I18N.t(data.year >= nowD.getFullYear() ? 'annual.toDate' : 'annual.total')}</td>
+              <td>${eur(yInc)}</td>
+              <td>${eur(yOut)}</td>
+              <td class="${negY}">${signedEur(yBal)}</td>
+            </tr>
+            ${rate !== null ? `<tr class="rate-row"><td colspan="3">${I18N.t('annual.savingsRate')}</td><td class="${negY}">${escapeHtml(rate)} %</td></tr>` : ''}
+          </tbody>
+        </table>
+      </div>
+    </div>`;
 }
 
 // --- FIXED COSTS TAB ---
@@ -510,16 +628,46 @@ function closeModal(id) {
   lastFocus = null;
 }
 
-// --- EXPENSE MODAL ---
+// --- EXPENSE MODAL (Ausgabe ODER Einnahme, v1.12) ---
+// Titel per data-i18n mitführen, damit ein Sprachwechsel bei offenem Modal den richtigen Text setzt (applyStatic)
+function setExpTitle(key) { const h = $('expense-modal-title'); h.dataset.i18n = key; h.textContent = I18N.t(key); }
+// Nur Zustand, Knöpfe und Platzhalter — füllt keine Kategorien (clearRendered ruft das beim Sperren)
+function markKind(kind) {
+  expKind = kind === 'income' ? 'income' : 'expense';
+  document.querySelectorAll('.kind-pill').forEach(el => {
+    const on = el.dataset.kind === expKind;
+    el.classList.toggle('active', on); el.setAttribute('aria-pressed', on ? 'true' : 'false');
+  });
+  const ph = expKind === 'income' ? 'ph.incName' : 'ph.expName', n = $('exp-name');
+  n.dataset.i18nPh = ph; n.setAttribute('placeholder', I18N.t(ph));
+}
+// Umschalter Ausgabe/Einnahme: Titel und Kategorienliste folgen der Art. Kategorie: zuerst die Wahl dieser Art im offenen Formular
+// (sessCat), sonst die zuletzt gespeicherte dieser Art (kindCat, nur wenn noch vorhanden), sonst die erste der Liste.
+// fresh = neues Formular: die Auswahl des vorigen Formulars zählt nicht als Wahl dieser Sitzung.
+function setKind(kind, fresh) {
+  if (pendingLiabId) kind = 'expense';   // eine gebuchte Verbindlichkeit ist immer eine Ausgabe
+  const sel = $('exp-category');
+  if (fresh) sessCat = {}; else if (sel.value) sessCat[expKind] = sel.value;
+  markKind(kind);
+  const inc = expKind === 'income';
+  if (!pendingLiabId) setExpTitle(editingExpenseId ? (inc ? 'modal.incomeEdit' : 'modal.expenseEdit') : (inc ? 'modal.incomeAdd' : 'modal.expenseAdd'));
+  sel.innerHTML = catOpts(expKind);
+  const s = sessCat[expKind], k = kindCat[expKind];
+  if (s) { selectValue(sel, s); return; }   // selectValue ruft syncCombo, legt eine verwaiste Kategorie als Option an
+  if (k && [...sel.options].some(o => o.value === k)) sel.value = k;
+  syncCombo('exp-category');
+}
+
 function openExpenseModal(id) {
   editingExpenseId = id || null;
   pendingLiabId = null;
   const isEdit = !!id;
-  $('expense-modal-title').textContent = I18N.t(isEdit ? 'modal.expenseEdit' : 'modal.expenseAdd');
+  $('exp-kind-group').style.display = '';
   $('exp-date').value = todayISO();
   $('exp-name').value = '';
   $('exp-amount').value = '';
   $('exp-note').value = '';
+  setKind('expense', true);
   if (isEdit) loadExpenseForEdit(id);
   openModal('modal-expense', 'exp-name');
 }
@@ -528,7 +676,8 @@ async function loadExpenseForEdit(id) {
   try {
     const list = await apiFetch('GET', `/api/expenses?year=${dashYear}&month=${dashMonth}`);
     const exp = list.find(e => e.id === id);
-    if (!exp || !unlocked()) return;
+    if (!exp || !unlocked() || editingExpenseId !== id) return;   // inzwischen gesperrt oder ein anderes Modal geöffnet
+    setKind(exp.kind, true);
     $('exp-name').value = exp.name;
     $('exp-amount').value = exp.amount;
     $('exp-date').value = exp.date;
@@ -548,7 +697,10 @@ async function saveExpense() {
   const amount = parseFloat($('exp-amount').value);
   if (!name || !amount || amount <= 0) { showToast(I18N.t('toast.reqFields'), true); return; }
 
+  const kind = pendingLiabId ? 'expense' : expKind;   // VOR dem await festhalten
+  const inc = kind === 'income';
   const body = {
+    kind,
     name,
     amount,
     category: $('exp-category').value,
@@ -561,7 +713,7 @@ async function saveExpense() {
   try {
     if (editingExpenseId) {
       await apiFetch('PATCH', `/api/expenses/${editingExpenseId}`, body);
-      showToast(I18N.t('toast.expUpdated'));
+      showToast(I18N.t(inc ? 'toast.incUpdated' : 'toast.expUpdated'));
     } else {
       const liabId = pendingLiabId;   // VOR dem await sichern (Overlay-Klick könnte die Variable währenddessen nullen)
       await apiFetch('POST', '/api/expenses', body);
@@ -570,9 +722,10 @@ async function saveExpense() {
         showToast(I18N.t('toast.liabBooked'));
         loadLiabilities();
       } else {
-        showToast(I18N.t('toast.expSaved'));
+        showToast(I18N.t(inc ? 'toast.incSaved' : 'toast.expSaved'));
       }
     }
+    if (unlocked()) kindCat[kind] = body.category;   // nächstes Formular dieser Art startet mit dieser Kategorie (wie bis v1.11)
     closeExpenseModal();
     loadDashboard();
   } catch (e) {
@@ -586,9 +739,11 @@ async function saveExpense() {
 // zurück (Route /api/expenses/restore). Nach dem await: Sperre kann gelaufen sein → Zustand neu prüfen; die Route meldet einen inzwischen
 // fehlenden Eintrag als err.notFound.
 async function deleteExpense(id) {
-  const e0 = dashData && dashData.current_expenses ? dashData.current_expenses.find(x => x.id === id) : null;
+  const shown = dashData ? [...(dashData.current_expenses || []), ...(dashData.current_incomes || [])] : [];
+  const e0 = shown.find(x => x.id === id) || null;
   const line = e0 ? '\n\n' + e0.name + ' · ' + eur(e0.amount) : '';
-  if (!(await ask(I18N.t('confirm.delExpense') + line, { ok: 'dlg.delete', danger: true }))) return;
+  const q = e0 && e0.kind === 'income' ? 'confirm.delIncome' : 'confirm.delExpense';
+  if (!(await ask(I18N.t(q) + line, { ok: 'dlg.delete', danger: true }))) return;
   if (!unlocked()) return;
   try {
     const removed = await apiFetch('DELETE', `/api/expenses/${id}`);
@@ -603,7 +758,7 @@ async function undoDeleteExpense(removed) {
   try {
     await apiFetch('POST', '/api/expenses/restore', removed);
     loadDashboard();
-    showToast(I18N.t('toast.restored'));
+    showToast(I18N.t(removed.entry && removed.entry.kind === 'income' ? 'toast.restoredInc' : 'toast.restored'));
   } catch (e) {
     showToast(tErr(e), true);
   }
@@ -612,7 +767,7 @@ async function undoDeleteExpense(removed) {
 // --- FIXED COST MODAL ---
 function selectPeriod(p) {
   selectedPeriod = p;
-  document.querySelectorAll('.period-pill').forEach(el => {
+  document.querySelectorAll('.period-pill[data-period]').forEach(el => {   // nur Intervall-Knöpfe, nicht die Art-Knöpfe (v1.12)
     el.classList.toggle('active', el.dataset.period === p);
   });
 }
@@ -869,7 +1024,8 @@ async function bookLiab(id) {
     if (!l || !unlocked()) return;
     openExpenseModal();
     pendingLiabId = l.id;
-    $('expense-modal-title').textContent = I18N.t('modal.bookExpense');
+    $('exp-kind-group').style.display = 'none';   // gebuchte Verbindlichkeit = immer Ausgabe (saveExpense erzwingt es zusätzlich)
+    setExpTitle('modal.bookExpense');
     $('exp-name').value = l.name;
     $('exp-amount').value = l.amount;
     $('exp-note').value = l.note || I18N.t('liab.bookNote');
@@ -937,7 +1093,7 @@ async function exportBackup() {
   try {
     const raw = window.LocalDB.exportVaultRaw();
     if (!raw) { showToast(I18N.t('toast.noVault'), true); return; }
-    const d = new Date().toISOString().substring(0, 10);
+    const d = todayISO();   // Ortsdatum, nicht UTC (R3 H3: am 01.12. 00:30 Berlin hieß die Datei sonst …-11-30)
     await saveFile(`ausgaben-tracker-${d}.vault`, raw, 'application/octet-stream');
     showToast(I18N.t('toast.backupExported'));
   } catch (e) { showToast(tErr(e), true); }
@@ -1073,17 +1229,23 @@ let catCounts = new Map();
 async function renderCategoryList() {
   try {
     const [ex, fc] = await Promise.all([apiFetch('GET', '/api/expenses'), apiFetch('GET', '/api/fixed-costs')]);
+    // Zählen je Art (v1.12): ein Eintrag mit verwaistem Namen der anderen Art zählt nicht mit — wie retag() in der Route (Review N2)
     catCounts = new Map();
-    [...ex, ...fc].forEach(e => catCounts.set(e.category, (catCounts.get(e.category) || 0) + 1));
+    const bump = (kind, name) => { const k = kind + '\u0000' + name; catCounts.set(k, (catCounts.get(k) || 0) + 1); };
+    ex.forEach(e => bump(e.kind === 'income' ? 'income' : 'expense', e.category));
+    fc.forEach(f => bump('expense', f.category));
   } catch (e) { catCounts = new Map(); }
   if (!unlocked()) return;
-  $('cat-list').innerHTML = categories.map(c => `
+  const cnt = c => catCounts.get((c.kind === 'income' ? 'income' : 'expense') + '\u0000' + c.name) || 0;
+  const row = c => `
     <div class="cat-row" data-cat-id="${escapeHtml(c.id)}">
       <span class="cat-name">${escapeHtml(c.name)}</span>
-      <span class="cat-count">${(catCounts.get(c.name) || 0) === 1 ? I18N.t('set.catCount1') : I18N.t('set.catCount', { n: catCounts.get(c.name) || 0 })}</span>
+      <span class="cat-count">${cnt(c) === 1 ? I18N.t('set.catCount1') : I18N.t('set.catCount', { n: cnt(c) })}</span>
       <button class="action-btn" data-action="catEdit" data-id="${escapeHtml(c.id)}" title="${escapeHtml(I18N.t('set.catRename'))}" aria-label="${escapeHtml(I18N.t('set.catRename'))}">${ICON.svg('edit')}</button>
       <button class="action-btn danger" data-action="catDelete" data-id="${escapeHtml(c.id)}" title="${escapeHtml(I18N.t('set.catDelete'))}" aria-label="${escapeHtml(I18N.t('set.catDelete'))}">${ICON.svg('trash')}</button>
-    </div>`).join('');
+    </div>`;
+  $('cat-list').innerHTML = catsOf('expense').map(row).join('');
+  $('cat-list-inc').innerHTML = catsOf('income').map(row).join('');   // Einnahme-Kategorien (v1.12)
 }
 async function afterCategoryChange(toastKey, vars) {
   await loadCategories();
@@ -1091,12 +1253,13 @@ async function afterCategoryChange(toastKey, vars) {
   if (dashData) loadDashboard();
   showToast(I18N.t(toastKey, vars));
 }
-async function addCategory() {
-  const inp = $('cat-new');
+async function addCategory(kind) {
+  kind = kind === 'income' ? 'income' : 'expense';
+  const inp = $(kind === 'income' ? 'cat-new-inc' : 'cat-new');
   const name = inp.value.trim();
   if (!name) return;
   try {
-    await apiFetch('POST', '/api/categories', { name });
+    await apiFetch('POST', '/api/categories', { name, kind });
     inp.value = '';
     await afterCategoryChange('toast.catAdded');
   } catch (e) { showToast(tErr(e), true); }
@@ -1109,12 +1272,14 @@ function catEdit(id) {
     <input type="text" id="cat-edit-input" maxlength="60" value="${escapeHtml(c.name)}" autocomplete="off">
     <button class="btn sm" data-action="catSave" data-id="${escapeHtml(c.id)}">${escapeHtml(I18N.t('set.catOk'))}</button>
     <button class="btn ghost sm" data-action="catCancel">${escapeHtml(I18N.t('set.catCancel'))}</button>`;
-  const inp = $('cat-edit-input');
+  const inp = row.querySelector('input');
   inp.focus(); inp.select();
   inp.addEventListener('keydown', e => { if (e.key === 'Enter') catSave(id); if (e.key === 'Escape') renderCategoryList(); });
 }
+// Feld aus der EIGENEN Zeile lesen: zwei offene Bearbeitungszeilen (zwei Listen seit v1.12) trugen dieselbe id, $() traf die erste (Review v1.12 N7)
 async function catSave(id) {
-  const inp = $('cat-edit-input');
+  const row = document.querySelector(`.cat-row[data-cat-id="${CSS.escape(id)}"]`);
+  const inp = row ? row.querySelector('input') : null;
   const name = inp ? inp.value.trim() : '';
   if (!name) return;
   try {
@@ -1221,7 +1386,41 @@ function tErr(e) {
 
 // --- INIT (läuft erst nach Entsperren) ---
 let appReady = false;
+// „Heute“ neu setzen; stand die Übersicht auf dem bisher laufenden Monat (bzw. das Jahr auf dem laufenden Jahr), rückt sie mit — ein bewusst
+// gewählter anderer Monat bleibt stehen (R2 M-1). Verglichen wird mit dem zuletzt GESEHENEN Tag als Zahlen (seen*), nicht mit dem alten
+// Date-Objekt: nach einem Zeitzonenwechsel läse das alte Objekt schon die neue Zone, der Monatswechsel bliebe unbemerkt (R3 N1).
+// Liegt die Ansicht nach einem Zurückstellen der Uhr in der Zukunft, fällt sie auf heute zurück (R3 H4). Gerendert werden nur
+// datumsabhängige Ansichten (Übersicht, Jahr, Schulden) — nie Einstellungen/Fixkosten, dort ginge ein angefangenes Umbenennen verloren (R3 N4).
+// Liefert true, wenn sich die angezeigte Position (Monat/Jahr) geändert hat.
+let seenY = today.getFullYear(), seenM = today.getMonth() + 1, seenD = today.getDate();
+function followToday(rerender) {
+  const py = seenY, pm = seenM, pd = seenD;
+  today = new Date();
+  const y = today.getFullYear(), m = today.getMonth() + 1, d = today.getDate();
+  seenY = y; seenM = m; seenD = d;
+  let moved = false;
+  if (y !== py || m !== pm) {
+    if (dashYear === py && dashMonth === pm) { dashYear = y; dashMonth = m; moved = true; }
+    if (annualYear === py && y !== py) { annualYear = y; moved = true; }
+    if (y !== py) populateExportYears();
+  }
+  if (ymNum(dashYear, dashMonth) > ymNum(y, m)) { dashYear = y; dashMonth = m; moved = true; }
+  if (annualYear > y) { annualYear = y; moved = true; }
+  if (rerender && (moved || y !== py || m !== pm || d !== pd)) renderDated();   // auch Tageswechsel: „heute fällig“ (R3 H2)
+  return moved;
+}
+function renderDated() {
+  if (!unlocked()) return;
+  updateMonthLabel();
+  $('btn-next-year').disabled = annualYear >= today.getFullYear();
+  const a = document.querySelector('.nav-tab.active'), v = a ? a.dataset.tab : 'dashboard';
+  if (v === 'dashboard') loadDashboard(); else if (v === 'annual') loadAnnual(); else if (v === 'liab') loadLiabilities();
+}
+// Vordergrund über Mitternacht (kein visibilitychange, Auto-Sperre aus): einmal pro Minute nachsehen (R3 N3). Rendert nur bei Tageswechsel.
+setInterval(() => { if (unlocked() && !document.hidden) followToday(true); }, 60000);
+
 async function init() {
+  followToday(false);   // Entsperren nach einem Monatswechsel: laufender Monat statt des alten (init lädt danach ohnehin neu)
   await loadSettings();
   resetIdle();   // Timer erst mit dem echten Wert scharfschalten (Audit run-1 #8: vorher 5-Min-Default)
   await loadCategories();
@@ -1237,7 +1436,9 @@ function showAuth() {
   $('auth-setup').classList.toggle('active', setup);
   $('auth-unlock').classList.toggle('active', !setup);
   const focusEl = $(setup ? 'setup-pass1' : 'unlock-pass');
-  setTimeout(() => focusEl && focusEl.focus(), 100);
+  // Nie aus einem inzwischen geöffneten Modal (Backup-Passwort) wegspringen: Getipptes landete sonst im Feld dahinter (v1.12, gefunden als
+  // sporadisch rote verify-audit1: Restore-Passwort leer, Setup-Feld voll)
+  setTimeout(() => { if (focusEl && !document.querySelector('.modal-overlay.open')) focusEl.focus(); }, 100);
 }
 
 function enterApp() {
@@ -1287,15 +1488,15 @@ async function doUnlock() {
 
 // Nach dem Sperren darf nichts Entschlüsseltes im (verdeckten) DOM lesbar bleiben
 function clearRendered() {
-  ['dashboard-content', 'dash-cats', 'dash-chips', 'summary-cards', 'annual-content', 'fixed-content', 'liab-content',
-   'exp-category', 'fc-category', 'cat-list'].forEach(id => {
+  ['dashboard-content', 'dash-cats', 'dash-chips', 'summary-cards', 'dash-balance', 'annual-content', 'annual-balance', 'fixed-content', 'liab-content',
+   'exp-category', 'fc-category', 'cat-list', 'cat-list-inc'].forEach(id => {
     const el = $(id); if (el) el.innerHTML = '';
   });
   ['fc-monthly-total', 'fc-yearly-total', 'month-label', 'liab-open-total', 'liab-open-count', 'liab-count-sub', 'about-line', 'help-about'].forEach(id => {
     const el = $(id); if (el) el.textContent = '';
   });
   ['exp-name', 'exp-amount', 'exp-note', 'exp-date', 'fc-name', 'fc-amount', 'fc-note', 'fc-since', 'liab-name', 'liab-amount',
-   'liab-due', 'liab-note', 'pass-old', 'pass-new1', 'pass-new2', 'dash-search', 'cat-new', 'restore-pass'].forEach(id => {
+   'liab-due', 'liab-note', 'pass-old', 'pass-new1', 'pass-new2', 'dash-search', 'cat-new', 'cat-new-inc', 'restore-pass'].forEach(id => {
     const el = $(id); if (el) el.value = '';
   });
   $('fc-usage').value = 'privat'; $('fc-active').checked = false; $('restore-file-name').textContent = ''; $('restore-err').textContent = '';
@@ -1309,6 +1510,9 @@ function clearRendered() {
   $('set-autolock').value = '5';
   closeMenus(); syncCombos();   // Menüs tragen Kategorienamen; Knopfbeschriftungen den geleerten Selects anpassen
   pendingLiabId = null; editingLiabId = null; editingExpenseId = null; editingFixedId = null;
+  markKind('expense'); $('exp-kind-group').style.display = '';   // Art-Umschalter zurück (v1.12), ohne Kategorien zu füllen
+  $('expense-modal-title').dataset.i18n = 'modal.expenseAdd';
+  kindCat = { expense: '', income: '' }; sessCat = {};   // gemerkte Kategorienamen sind Nutzerdaten
   dashData = null; searchQ = ''; catFilter = new Set(); catCounts = new Map();
   categories = []; settings = { autolock: 5 };
   showTabSilent('dashboard');
@@ -1360,8 +1564,9 @@ document.addEventListener('visibilitychange', () => {
   if (document.hidden) { hiddenAt = Date.now(); return; }
   const away = hiddenAt ? Date.now() - hiddenAt : 0; hiddenAt = 0;
   const ms = autolockMs();
-  if (ms && away > ms) autoLock();
-  else resetIdle();
+  // away < 0: Uhr im Hintergrund zurückgestellt — die Wegzeit ist dann unbekannt, also sperren statt den Timer neu zu starten (R3 M1)
+  if (ms && (away > ms || away < 0)) autoLock();
+  else { resetIdle(); followToday(true); }   // Monatswechsel im Hintergrund: Ansicht rückt mit, Folgemonat wieder erreichbar (R2 M-1)
 });
 
 // --- SPRACHE (DE/EN) ---
@@ -1461,7 +1666,8 @@ const ACTIONS = {
   closeRestore: () => closeRestore(), saveRestore: () => saveRestore(),
   saveChangePass: () => saveChangePass(),
   theme: (_, arg) => theme(arg),
-  addCategory: () => addCategory(), catEdit: (id) => catEdit(id), catSave: (id) => catSave(id),
+  addCategory: (_, arg) => addCategory(arg), catEdit: (id) => catEdit(id), catSave: (id) => catSave(id),
+  setKind: (_, arg) => { if (arg !== expKind) setKind(arg); },   // Tipp auf die schon aktive Art ändert nichts (Review v1.12 N1)
   catCancel: () => renderCategoryList(), catDelete: (id) => catDelete(id),
   chip: (_, arg) => setChip(arg), chipAll: () => setChip(null),
   openHelp: () => openHelp(), closeHelp: () => closeHelp(),
@@ -1488,6 +1694,11 @@ document.addEventListener('change', e => {
 // ESC: offenes Auswahlmenü, sonst Handbuch, sonst offenes Modal schließen
 document.addEventListener('keydown', e => {
   if (dialogKey(e)) { e.preventDefault(); return; }   // offener Dialog: Escape bricht ab, Tab pendelt (v1.9)
+  // Enter in Feldern mit data-enter löst deren Aktion aus (v1.12: „Neue Kategorie“ beider Listen); preventDefault wie im Kit
+  if (e.key === 'Enter' && !e.isComposing && e.target && e.target.closest) {
+    const el = e.target.closest('[data-enter]');
+    if (el) { e.preventDefault(); const fn = ACTIONS[el.dataset.enter]; if (fn) fn(el.dataset.id || undefined, el.dataset.arg, el); return; }
+  }
   if (e.key !== 'Escape') return;
   if (document.querySelector('.combo-menu:not(.hidden)')) { closeMenus(); return; }
   if (!$('help-overlay').classList.contains('hidden')) { closeHelp(); return; }

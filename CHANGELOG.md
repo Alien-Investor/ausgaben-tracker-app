@@ -2,6 +2,39 @@
 
 Format: `## vX.Y — YYYY-MM-DD`. Offline-App (Capacitor), Web + APK aus einer Codebasis.
 
+## v1.12 — 2026-11-07
+
+Funktionsrelease mit **neuem Datenformat (Tresor-Version 2)**. Backups aus allen bisherigen Versionen laden weiter. Ein Backup, das
+Einnahmen enthält, gehört aber nur in v1.12 oder neuer: v1.11 und älter kennen Einnahmen nicht, würden sie als Ausgaben zeigen und die
+Unterscheidung beim nächsten Speichern verlieren.
+
+- **Einnahmen.** Im Formular (Plus-Knopf) oben zwischen „Ausgabe“ und „Einnahme“ umschalten. Erfasst werden einmalige Einnahmen wie
+  Gehalt, Nebeneinkünfte oder Erstattungen. Beträge bleiben positiv, die Art bestimmt die Richtung. Einnahmen haben eigene Kategorien
+  (Standard: Gehalt, Nebeneinkünfte, Erstattungen, Sonstige Einnahmen), die du in den Einstellungen getrennt von den Ausgaben-Kategorien
+  verwaltest. Bestehende Tresore bekommen die Standardliste beim ersten Entsperren.
+- **Bilanz nur bei Bedarf.** Solange der Tresor keine Einnahme enthält, sieht alles aus wie bisher. Ab der ersten Einnahme zeigt die
+  Übersicht oben eine Bilanz-Karte (Einnahmen, Ausgaben, Saldo, Sparquote) und unter den variablen Ausgaben einen Abschnitt „Einnahmen“.
+  Der Jahr-Tab bekommt eine eigene Bilanz-Tabelle mit dem Saldo je Monat und der Sparquote. Im laufenden Jahr rechnet sie bis heute,
+  künftige Monate bleiben leer. Gesamt, Vormonatsvergleich und „Nach Kategorie“ zählen weiterhin nur Ausgaben.
+- Suche und Kategorie-Chips filtern auch Einnahmen, Löschen mit „Rückgängig“ funktioniert wie bei Ausgaben. „Abhaken + als Ausgabe
+  buchen“ im Tab „Schulden“ bucht immer eine Ausgabe.
+- **CSV-Export:** neue Spalte „Art“ (Ausgabe/Einnahme) direkt nach dem Betrag. Wer eine Tabelle mit festen Spaltenpositionen nutzt:
+  „Typ“ und „Notiz“ rücken eine Spalte nach rechts.
+- **Schutz vor Backups aus neueren Versionen:** Ein Backup aus einer künftigen Version mit neuem Datenformat lehnt die App mit dem
+  Hinweis „Bitte die App aktualisieren“ ab, statt unbekannte Felder still zu verwerfen.
+- **Zahlenfelder im Neon-Look:** Die Pfeile im Betragsfeld und das Kalender-Symbol im Datumsfeld folgen dem App-Design statt des grauen
+  Browser-Standards (sichtbar im Desktop-Browser; am Handy öffnet das Datumsfeld weiter den Android-Datumsdialog).
+- **Neues App-Symbol:** eigener Alien-Kopf im Neon-Look (ohne Mund) statt der bisherigen Vorlage aus Twemoji, die Euro-Münze bleibt.
+- Enter im Feld „Neue Kategorie“ legt die Kategorie an.
+- **Monatswechsel bei laufender App:** Blieb die App über einen Monatswechsel geöffnet, blieben Übersicht und Jahr im alten Monat stehen,
+  und der neue Monat war bis zum nächsten Neustart nicht erreichbar. Jetzt rückt die Ansicht beim Entsperren und bei der Rückkehr in die App
+  in den neuen Monat vor, wenn sie auf dem bisher laufenden Monat stand. Ein bewusst gewählter anderer Monat bleibt stehen.
+- **Kleinere Korrekturen:** Wurden zwei Kategorien gleichzeitig zum Umbenennen geöffnet, konnte der neue Name bei der falschen landen.
+  Ein abgelehnter Betrag beim Bearbeiten ließ den geänderten Namen bis zum nächsten Speichern im Speicher stehen. Öffnete sich das
+  Backup-Passwortfenster in den ersten Sekundenbruchteilen nach dem Sperrbildschirm, sprang der Eingabefokus in das Feld dahinter.
+  Wurde die Uhr des Telefons zurückgestellt, während die App entsperrt im Hintergrund lag, sperrte sie beim Öffnen nicht; jetzt sperrt sie.
+  Der Dateiname des Backups trägt das Ortsdatum (vorher UTC, kurz nach Mitternacht stand dort noch der Vortag).
+
 ## v1.11 — 2026-10-04
 
 Wartungsrelease. Keine Änderung am Datenformat; Backups aus allen bisherigen Versionen laden unverändert.

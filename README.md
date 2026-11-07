@@ -11,6 +11,10 @@ No account, no server, no tracking — all data stays **encrypted on your device
 
 - Monatsübersicht mit Fixkosten, variablen Ausgaben und Vergleich zum Vormonat
 - Jahresübersicht (12-Monats-Tabelle)
+- **Einnahmen und Bilanz** (seit v1.12): einmalige Einnahmen (z. B. Gehalt, Erstattungen) im selben Formular
+  erfassen, mit eigenen Einnahme-Kategorien. Ab der ersten Einnahme zeigen Übersicht und Jahr eine Bilanz mit
+  Einnahmen, Ausgaben, Saldo und Sparquote (im laufenden Jahr bis heute). Ohne Einnahmen sieht alles aus wie bisher.
+  CSV-Export mit Spalte „Art“ (Ausgabe/Einnahme)
 - Fixkosten-Verwaltung (monatlich/jährlich, historisch korrekt über Aktiv-/Inaktiv-Status)
 - CSV-Export (Excel/LibreOffice/Sheets-kompatibel) inkl. Fixkosten-Zusammenfassung
 - Steuerliche Nutzung pro Fixkosten-Position (privat / betrieblich / anteilig)
@@ -117,8 +121,4 @@ weil der Systemdialog nicht unter dem Screenshot-Schutz (FLAG_SECURE) lag; **v1.
 
 MIT — siehe [LICENSE](LICENSE).
 
-Das Alien im App-Symbol basiert auf dem Emoji „Alien“ (U+1F47D) aus [Twemoji](https://github.com/twitter/twemoji),
-Copyright 2019 Twitter, Inc and other contributors, lizenziert unter [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/deed.de).
-Übernommen sind die Umrisse von Kopf und Augen. Ergänzt sind Antennen, Farbverlauf, Kontur und Leuchteffekt, geändert sind die
-Farben, der Mund des Originals ist ersetzt oder entfällt. Die Urheber übernehmen keine Gewährleistung (Abschnitt 5 der Lizenz).
 Alle Lizenzangaben: https://alien-investor.org/lizenzen.html

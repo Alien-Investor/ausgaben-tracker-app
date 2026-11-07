@@ -84,6 +84,7 @@
           <div class="month-label" id="month-label"></div>
           <button class="month-nav-btn" id="btn-next-month" data-action="nextMonth" aria-label="Folgemonat">&#8594;</button>
         </div>
+        <div id="dash-balance"></div>
         <div class="summary-grid" id="summary-cards"></div>
         <div id="dash-cats"></div>
         <div class="search-row"><input type="search" id="dash-search" data-i18n-ph="dash.searchPh" placeholder="Suchen (Name, Notiz) …" autocomplete="off" aria-label="Suchen"></div>
@@ -99,6 +100,7 @@
           <button class="year-nav-btn" id="btn-next-year" data-action="nextYear" aria-label="Folgejahr">&#8594;</button>
         </div>
         <div class="card"><div id="annual-content"></div></div>
+        <div id="annual-balance"></div>
       </div>
 
       <!-- TAB: FIXKOSTEN -->
@@ -217,10 +219,17 @@
 
         <div class="card">
           <h2 data-i18n="set.catTitle">Kategorien</h2>
+          <h3 class="cat-sub" data-i18n="set.catExpense">Ausgaben</h3>
           <div id="cat-list" class="cat-list"></div>
           <div class="xrow" style="margin-top:10px">
-            <input type="text" id="cat-new" maxlength="60" data-i18n-ph="set.catPh" placeholder="Neue Kategorie" autocomplete="off">
-            <button class="btn sm" data-action="addCategory" data-i18n="set.catAdd">Hinzufügen</button>
+            <input type="text" id="cat-new" maxlength="60" data-i18n-ph="set.catPh" placeholder="Neue Kategorie" autocomplete="off" data-enter="addCategory" data-arg="expense">
+            <button class="btn sm" data-action="addCategory" data-arg="expense" data-i18n="set.catAdd">Hinzufügen</button>
+          </div>
+          <h3 class="cat-sub" data-i18n="set.catIncome">Einnahmen</h3>
+          <div id="cat-list-inc" class="cat-list"></div>
+          <div class="xrow" style="margin-top:10px">
+            <input type="text" id="cat-new-inc" maxlength="60" data-i18n-ph="set.catPhInc" placeholder="Neue Einnahme-Kategorie" autocomplete="off" data-enter="addCategory" data-arg="income">
+            <button class="btn sm" data-action="addCategory" data-arg="income" data-i18n="set.catAdd">Hinzufügen</button>
           </div>
           <p class="muted" style="margin-top:8px" data-i18n="set.catNote">Beim Umbenennen werden vorhandene Einträge mit umbenannt. Beim Löschen wandern die Einträge nach „Sonstiges“.</p>
         </div>
@@ -241,12 +250,19 @@
   </div><!-- /container -->
 
   <!-- Floating Add Button -->
-  <button class="add-btn" data-action="openExpense" data-i18n-title="addBtn.title" title="Ausgabe hinzufügen" aria-label="Ausgabe hinzufügen">+</button>
+  <button class="add-btn" data-action="openExpense" data-i18n-title="addBtn.title" data-i18n-aria="addBtn.title" title="Ausgabe oder Einnahme hinzufügen" aria-label="Ausgabe oder Einnahme hinzufügen">+</button>
 
   <!-- MODAL: Ausgabe -->
   <div class="modal-overlay" id="modal-expense" data-action="closeExpense" data-overlay="1">
     <div class="modal" role="dialog" aria-modal="true" aria-labelledby="expense-modal-title">
       <h2 id="expense-modal-title" data-i18n="modal.expenseAdd">Ausgabe hinzufügen</h2>
+      <!-- Art (v1.12): Ausgabe oder einmalige Einnahme. Beim Buchen einer Verbindlichkeit ausgeblendet (immer Ausgabe). -->
+      <div class="form-group" id="exp-kind-group">
+        <div class="period-pills" role="group" data-i18n-aria="modal.kind" aria-label="Art">
+          <button type="button" class="period-pill kind-pill active" data-kind="expense" aria-pressed="true" data-action="setKind" data-arg="expense" data-i18n="modal.kindExpense">Ausgabe</button>
+          <button type="button" class="period-pill kind-pill" data-kind="income" aria-pressed="false" data-action="setKind" data-arg="income" data-i18n="modal.kindIncome">Einnahme</button>
+        </div>
+      </div>
       <div class="form-group">
         <label for="exp-name" data-i18n="modal.label">Bezeichnung *</label>
         <input type="text" id="exp-name" data-i18n-ph="ph.expName" placeholder="z.B. Supermarkt Rewe" autocomplete="off">

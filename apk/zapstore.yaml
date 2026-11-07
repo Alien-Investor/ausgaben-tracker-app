@@ -27,8 +27,11 @@ description: |
     passphrase fields and cannot offer to save them (v1.10)
   - Monthly overview: fixed costs, variable expenses, comparison to previous month
   - Annual overview (12-month table)
+  - Income and balance (v1.12): log one-time income (salary, refunds) in the same form, with its own
+    income categories. From the first income on, the overview and the year view show income, expenses,
+    net and savings rate (current year: up to today). Without any income the app looks exactly as before
   - Fixed-cost management (monthly / yearly, historically correct active/inactive state)
-  - CSV export (Excel / LibreOffice / Sheets) incl. a deduplicated fixed-cost summary
+  - CSV export (Excel / LibreOffice / Sheets) incl. a deduplicated fixed-cost summary; column "Art" marks expense or income (v1.12)
   - Tax usage per fixed cost (private / business / partial)
   - Debts / liabilities (v1.6): note open payments with amount, due date and note,
     tick them off, overdue items highlighted — optionally book a settled item as an expense
