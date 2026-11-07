@@ -11,10 +11,10 @@ No account, no server, no tracking — all data stays **encrypted on your device
 
 - Monatsübersicht mit Fixkosten, variablen Ausgaben und Vergleich zum Vormonat
 - Jahresübersicht (12-Monats-Tabelle)
-- **Einnahmen und Bilanz** (seit v1.12): einmalige Einnahmen (z. B. Gehalt, Erstattungen) im selben Formular
-  erfassen, mit eigenen Einnahme-Kategorien. Ab der ersten Einnahme zeigen Übersicht und Jahr eine Bilanz mit
-  Einnahmen, Ausgaben, Saldo und Sparquote (im laufenden Jahr bis heute). Ohne Einnahmen sieht alles aus wie bisher.
-  CSV-Export mit Spalte „Art“ (Ausgabe/Einnahme)
+- **Einnahmen und Bilanz** (seit v1.12): Einnahmen als Einzelbuchungen (z. B. Gehalt, Erstattungen; keine wiederkehrenden
+  wie bei den Fixkosten) im selben Formular erfassen, mit eigenen Einnahme-Kategorien. Ab der ersten Einnahme zeigen Übersicht
+  und Jahr eine Bilanz mit Einnahmen, Ausgaben, Saldo und Sparquote (im laufenden Jahr bis zum laufenden Monat). Ohne Einnahmen
+  bleiben Übersicht und Jahr wie bisher. CSV-Export mit Spalte „Art“ (Ausgabe/Einnahme)
 - Fixkosten-Verwaltung (monatlich/jährlich, historisch korrekt über Aktiv-/Inaktiv-Status)
 - CSV-Export (Excel/LibreOffice/Sheets-kompatibel) inkl. Fixkosten-Zusammenfassung
 - Steuerliche Nutzung pro Fixkosten-Position (privat / betrieblich / anteilig)
@@ -112,7 +112,7 @@ node patch-hardening.mjs --check android/app/build/intermediates/packaged_manife
 # baut Gradle eine unsignierte APK; die Härtung (keine Permissions) ist unabhängig davon und prüfbar.
 ```
 
-Sicherheits-Audits: v1.5 (internes Audit), **v1.7 run-1 (13.09.2026)** mit dem security-audit-Skill —
+Sicherheits-Audits: v1.5 (internes Audit), **v1.7 run-1 (13.09.2026, internes Audit)** mit dem security-audit-Skill —
 13 Funde, alle vor dem Release behoben; Nachbesserung zu Fund 6 in **v1.7.1**. **v1.7.2** behebt einen Querfund aus dem Review des
 Sachwert-Tresors: Passwortwechsel und gleichzeitiges Speichern; **v1.9** ersetzt die Android-Systemdialoge durch eigene Rückfragen,
 weil der Systemdialog nicht unter dem Screenshot-Schutz (FLAG_SECURE) lag; **v1.10** nimmt die WebView vom Android-Autofill-Framework aus, damit ein fremder Passwort-Manager als Autofill-Dienst die Passphrase-Felder nicht sieht und nicht anbieten kann, sie zu speichern (Details im `CHANGELOG.md`).
